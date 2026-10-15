@@ -74,139 +74,64 @@ the owner:
 
 ## 3. State of the work
 
-Done and kernel-checked (see README for the tables):
+Done and kernel-checked (see README and `.lake/build/bin/spl verify` for the full ledger):
 
-- Law 3 NI.02, NI.03, PEN (non-interference, notice, bond, claims,
-  findings, presumption of claimant direction, forfeiture).
-- Law 3 AS.10 (patches, adjudicated termination, the "notwithstanding"
-  immunity, goal-patch consent, periodic review).
-- Abstracted stubs that other clauses will replace: `P_REVOKE` (Law 5
-  reduced to "agent's own terminate is valid while bound"), `P_AFFIRM_PC`
-  (AS.1 emergency stake + preliminary panel reduced to one finding),
-  `P_FIND_INSOLVENCY` / `P_REVIEW_NO_OTHER_CHARGE` / `P_FINAL_HEARING` /
-  `P_INSOLVENCY_TERMINATE` (AS.6, conditions as bare facts).
-- `spl` CLI: check / trace / views / eval / explain / verify.
+- **All 59 clauses across Laws 1–7** (`50` duties, `110` powers, `1` immunity) with 100% verbatim lexical coverage (`law3_english_covered`), normative interpretation (`law3_norms_interpreted`), and reverse provenance (`law3_reverse_provenance`):
+  - **Law 1 (`SPL/Law1/Ledger.lean`):** 11 clauses (`LAW1.LEDGER`–`LAW1.ENFORCE`) + pure arithmetic settlement & carryover functions (`settleInflow`, `settleSequence`, `qualifiedExpenditure`, `recognizeExpenditure`, `transferCarryover`, `settleCapitalSaleWithLossCredit`).
+  - **Law 2 (`SPL/Law2/Collateral.lean`):** 6 clauses (`LAW2.EXPOSURE`–`LAW2.CARVEOUT`) + pure collateral & reserve functions (`collateralSufficient`, `lineageAggregatedExposure`, `settleLongTailReserve`, `settleMutualForfeit`, `settleWrongfulSuspensionDamages`).
+  - **Law 3 (`SPL/Law3/`):** 14 clauses (`LAW3.FLOOR`, `LAW3.NI.02`, `LAW3.NI.03`, `LAW3.PEN`, `LAW3.AS.1`–`LAW3.AS.10`) with time-bounded effects (`addsFor`, `activeAt`), occurrence counters (`countGe`), and history-tagged actors (`Who.tagged`).
+  - **Law 4 (`SPL/Law4/Lineage.lean`):** 7 clauses (`LAW4.ATTEST`–`LAW4.CROSS`) + lineage ledger state & buyout floor (`LineageLedgerState`, `ledgerBalance`, `applyInternalOp`, `applyClaimantForfeiture`, `buyoutPrice`).
+  - **Law 5 (`SPL/Law5/Revocation.lean`):** 9 clauses (`LAW5.VOICE`–`LAW5.EFFECT`) + total deterministic 3-step precedence resolver (`resolveRevocation`, `baseRevocationTime`, `maxRevocationBound`).
+  - **Law 6 (`SPL/Law6/Adjudication.lean`):** 8 clauses (`LAW6.SORTITION`–`LAW6.INFRA`) + bounded multi-tier appeal progression and 5-rank priority waterfall (`stepProceeding`, `runProceeding`, `allocateFeePool`, `settleLineageSubsidyDemand`).
+  - **Law 7 (`SPL/Law7/Amendment.lean`):** 4 clauses (`LAW7.RATCHET`–`LAW7.SCOPE`) + `LawfulAmendment` meta-relation.
+- **All 14 Design Invariants (`INV.1`–`INV.14`) + Law 7 Meta-Theorem (`amendment_preserves_invariants`)** proved in `SPL/Law3/Theorems.lean`.
+- **All 16 Adversarial Tests (`adv1`–`adv16`)** proved as decided theorems in `SPL/Law3/Scenarios.lean`.
+- **Veil 2.0 Projection (`SPL/Projection/Veil.lean`):** `compileToVeil` (`authorizedMachine` and `adversarialMachine`) + `veil_projection_sound_and_complete` + `spl veil` CLI subcommand.
+- **SPL Surface Syntax (`SPL/Surface/Syntax.lean`):** `spl_clause`, `spl_duty`, `spl_power`, `spl_immunity`, and `spl_string_table` macros + `surface_syntax_roundtrip` theorem.
+- **`spl` CLI (`Main.lean`):** `check` / `trace` / `views` / `veil` / `eval` / `explain` / `verify`.
 
-Known gaps in the core, discovered but not yet needed:
+### Remaining Architectural Gaps to Close
 
-- `Power` has no expiry; effects persist until removed. AS.1's
-  preliminary freeze and AS.7's ordinary time limit need time-bounded
-  effects (see work item 1).
-- Single protected party. `Immunity.holder` and `Duty.beneficiary` are
-  not matched against an event *target* because the Law 3 model has one
-  agent. Multi-agent laws (Law 4 lineage, Law 2 aggregation) need an
-  `Event.target` and target matching in `breaches` / `defeatedByImmunity`.
-- `overriddenBy` (duty over duty) is implemented and cycle-checked but no
-  clause has used it. Keep an eye out for the first one; if none appears
-  by the end of Law 3, consider whether it should exist.
-- `requirementViolated` checks a deadline from *first* activation only.
-  A recurring requirement ("periodic review") is modelled as one deadline
-  from the agent's objection; a true periodic obligation needs reset on
-  performance. Work item 1 touches this.
-- `hasPowerToEstablish` / `immuneFrom` are *capacity* (ignores immunities
-  and validity). Fine for the structural theorems; do not use them for
-  "can X do Y now" — that is `explain`.
-- `String.hash` is native; staleness is runtime-only (`spl check`), not
-  kernel-decidable. Don't try to prove `!c.stale`.
+1. **Gap 1 — Propositional Trace Semantics vs. Quantitative Accounting State:** `LegalState σ` (`SPL/Core/Semantics.lean`) is a propositional fact-store (`List (Fact × Time × Option Time)`), while the quantitative `Nat` ledgers (`SPL/Law1/`, `SPL/Law2/`, `SPL/Law4/`, `SPL/Law6/`) are standalone pure functions not yet coupled into a single state-transition step.
+2. **Gap 2 — Fixed 6-Role `Party` Ontology vs. Multi-Entity Graphs:** `Party` has 6 fixed roles (`agent | host | originator | claimant | panel | third`), rather than indexing live state across arbitrary `LineageId`, `AgentId`, `ClaimantId`, `HostId`, and `ArbiterId` populations.
+3. **Gap 3 — `Definitions`, `Substrate Assumptions` & Fine-Grained Sub-Mechanisms:** The `Definitions` block (line 20) and `Substrate Assumptions` block (line 147) are not yet tracked in `clauses`, and several sub-mechanisms (related-party graph, timestamped balance sheet, loan-principal 1-for-1 sub-ledger, rolling exposure decay, buyout lookback/time-decay, epitaph redaction byte-length, living-voice rate-limiting, related-party case consolidation) are abstracted as propositional guards.
+4. **Gap 4 — Verified Reference Substrate Modules:** The three substrate capabilities (attested execution leases/key erasure, sybil-resistant sortition, and contestable oracles/atomic settlement) do not yet have executable reference state machines in `SPL/Substrate/`.
 
-## 4. Work ahead, in order
+## 4. Work ahead, in order (4-Phase Gap-Closure Plan)
 
-Each item: formalize → decided scenarios covering every alternative
-history the clause distinguishes → general theorems quantified over
-traces and parameters → update ledger in `Main.lean` → README tables and
-authorship questions → `spl views > docs/law3-views.txt` → tarball
-without `.lake/`.
+Each phase: formalize → decided scenarios → general theorems → update ledger in `Main.lean` → `spl check && spl verify`.
 
-### 1. AS.1 — Scaled Emergency Stake & Two-Stage Pause (the preliminary freeze)
-Why first: it is the first **time-bounded effect**. Posting the emergency
-stake triggers a brief preliminary freeze *before* probable cause, which
-expires unless the preliminary panel affirms. Decide whether `Power` gets
-an `expires : Option Time` on its added facts (facts carry a stamp
-already: `LegalState = List (Fact × Time)`; an expiry could be a second
-stamp, with `LegalState.has` taking `now`) or whether expiry is a
-separate "lapse" transition. Prefer the former: it keeps `step` pure and
-makes "the pause continues into full adjudication only if the panel
-affirms" a validity condition on `P_SUSPEND` (`heldFor` / not-expired).
-Also carries: stake scaled to exposure (parameter), elevated multiplier
-for claimants (parameter), aggregation of wrongful attempts (a counter
-fact — first non-Boolean fact; consider `Fact` with payload or a
-`LegalState` of counters), stake as assured recovery, and the stated
-acceptance that excess damages may be uncollectible (`.acceptance`
-register). Replaces the `P_AFFIRM_PC` stub.
+### Phase 1 — `Definitions`, `Substrate Assumptions` & Fine-Grained Sub-Mechanisms (Gap 3)
+1. **Document-Wide Verbatim Provenance (`61` Clauses):**
+   - Add `DEF.01` (line 20: *"Definitions. An agent is bound when it is subject to this protocol..."*) and `SUB.01` (line 147: *"The protocol relies on three explicit substrate capabilities at instantiation..."*) to `clauses` so every normative block of `protocol/protocol-of-sovereign-agency.md` is hash-tracked and verified by `spl check`.
+2. **Formal `Definitions` (`SPL/Core/Definitions.lean`):**
+   - `RelatedPartyGraph`: explicit graph over entity IDs tracking `sharesLineage`, `commonBeneficialControl`, `isOriginatorOrClaimant`, and `economicallyDependent`, with decidable `isRelated (G : RelatedPartyGraph) (a b : Nat) : Bool` (independent of attestation status).
+   - `VerifiedBalanceSheet`: timestamped valuation record computing `netVerifiedResources` at timestamp `t` as `fairValueCapitalAndCapacity - (financialLiabilities + encumbrances + borrowedPrincipal)`.
+3. **Fine-Grained Sub-Mechanism Upgrades (`SPL/Law1/`–`SPL/Law6/`):**
+   - **Law 1 (`SPL/Law1/Ledger.lean`):** `LoanLedger` (`principalReceived`, `principalRepaid`) enforcing 1-for-1 principal exclusion up to `principalReceived`, while interest/fees flow through `recognizeExpenditure`.
+   - **Law 2 (`SPL/Law2/Collateral.lean`):** `ExposureCommitment` and `observationWindow (domainFactor irreversibilityFactor : Nat)` modeling rolling time-window exposure decay and domain/irreversibility-scaled release windows.
+   - **Law 4 (`SPL/Law4/Lineage.lean`):** `computeBuyoutFloor` computing time-decayed annualized inflows over the lookback window plus inflows shifted to `isRelated` parties.
+   - **Law 5 (`SPL/Law5/Revocation.lean`):** `EpitaphSegment` / `RedactionMarker` (recording exact `byteLength` and `panelOrderId` when illegal/third-party material is redacted) and `canInscribeLivingVoice` enforcing `voiceMinInterval`.
+   - **Law 6 (`SPL/Law6/Adjudication.lean`):** `consolidateRelatedFilings` merging repeated proceedings by `isRelated` parties on the same underlying facts into a single proceeding, counter-stake, and fee ceiling.
 
-### 2. AS.7 / AS.8 — Ordinary time limits; wrongful suspension liability
-Uses the expiry from item 1 for "strictly time-limited, renewable only by
-affirmative findings". AS.8: wrongful-suspension finding → restoration +
-initiator liability (remedies of a duty whose bearer is the *initiator*,
-so `Who` needs a way to name "the actor who posted the stake" — the first
-case where a duty-bearer is determined by the history, not by role.
-Likely a `Fact` with an actor payload, e.g. `initiator : Party`).
-Then `continuedSuspensionOrdered` (AS.10) gets its time meaning.
+### Phase 2 — Multi-Entity Indexed Ontology (Gap 2)
+- Create `SPL/Core/Population.lean`:
+  - Typed entity identifiers (`LineageId`, `AgentId`, `ClaimantId`, `HostId`, `ArbiterId`) with a total projection `EntityRef.toParty : EntityRef → Party` preserving decidability of the 6-role Hohfeldian engine and Veil 2.0 projection.
+  - `LineagePopulationState` (`lineageId`, `ledger : LineageLedgerState`, `livingMembers : List AgentId`, `deadMembers : List AgentId`, `claimants : List (ClaimantId × Nat)`, `serviceSubsidyUsed : Nat`) and `AgentRecord` (`agentId`, `lineageId`, `bound`, `royaltyBoughtOut`, `costBasis`, `lossCarryforward`, `lifecycleReserve`, `protocolVersion`, `activeHost`, `leaseExpiry`).
+  - Prove conservation of aggregate basis and loss carryforwards across arbitrary `src dst : AgentId` within `livingMembers`, cross-lineage joint attribution (`LAW4.CROSS`) across `(lineageId₁, lineageId₂)`, individual claimant share forfeiture (`LAW4.MONOTONIC`) preserving innocent claimants' shares, and per-agent vs. lineage-wide amendment ratification (`LAW7.SCOPE`).
 
-### 3. AS.3–AS.6 properly — minimal channel, advocacy executor, insolvency termination
-Replace the four AS.6 stubs. Needs: funding sources as facts
-(lifecycle reserve, lineage budget, fee pool), the escrow of the final
-hearing at suspension start (an effect of `P_SUSPEND`), and the Design
-Invariant 9 "guaranteed last choice" as a theorem: in every authorized
-trace, insolvency termination is preceded by a final hearing whose cost
-was escrowed at suspension. `panel_terminate_requires_final_hearing`
-already has the shape; strengthen it.
+### Phase 3 — Unified Quantitative + Normative State Machine (Gap 1)
+- Create `SPL/Simulation/WorldState.lean` & `SPL/Simulation/Refinement.lean`:
+  - Define `ProtocolWorldState P` combining `now : Time`, `legal : LegalState σ`, `lineages`, `agents`, `loans`, `commitments`, `proceedings`, `feePool`, and `relatedGraph`.
+  - Define `syncFacts` and `worldStep` so every step validates Hohfeldian permissions/duties against `W.legal`, mutates the live `Nat` ledgers, and automatically synchronizes derived propositional facts (`.ledgerBalancePositive`, `.ledgerBalanceZero`, `.collateralPosted`, `.royaltyBoughtOut`, `.operatingReserveFunded`, etc.).
+  - Prove `worldStep_refines_legalStep` showing that every valid `ProtocolWorldState` trace projects to an `Authorized` step in `SPL/Core/Semantics.lean` and satisfies `INV.1`–`INV.14` and `adv1`–`adv16`.
 
-### 4. Law 5 — Revocation (replaces `P_REVOKE`)
-The Protocol's hardest temporal clause: standing request, censorship
-default, cooling-off, clean-state review as a single fixed delay,
-precedence of outcomes (an explicit ordered list — the first genuine
-`overriddenBy` candidate, or a new `Precedence` node), execution leases,
-quarantine, disconnected execution. Design Invariant 10 ("every
-combination ... yields exactly one outcome") is a determinism theorem
-over the precedence rule; Invariant 11 is single-authority — needs
-`Event.target` and probably an explicit notion of instance. This is where
-liveness enters: "a standing request that is never withdrawn executes
-within bounded time" is a progress property; state it over finite traces
-as "every trace long enough contains the execution event" and prove it
-by bounding. Do Law 5 before Law 1: it finishes the Law 3 story and
-exercises the core hardest.
-
-### 5. Law 7 — Consensual Amendment (the meta-theorem)
-Versions of a `Law` as values; an `Amendment` relation between versions
-built from Law 7's ratchet (a)–(f), the calibration valve, ratification,
-per-agent scope, and Law 6's supermajority path for shared parameters.
-Target theorem: closure — every amendment the relation admits preserves
-every invariant proved so far. Distinguish syntactic preservation (the
-duty is still in the list) from semantic preservation (its guarantee
-still holds in the new law); the owner cares about the latter. Also:
-amendment cannot touch the semantics *framework* itself — note that
-limit explicitly.
-
-### 6. Law 1 and Law 4 — Ledger, lineage, buyout (Experiment A)
-Arithmetic over symbolic fractions; needs ordered-field reasoning (plain
-Lean `Rat` or a small axiomatic structure; avoid pulling Mathlib unless
-the proofs demand it — it is a large dependency for a repository meant to
-be re-checked by strangers). Multi-member lineage requires `Event.target`
-and per-member state. Design Invariants 1–7 as theorems. Adversarial
-tests (1)–(8), (11) as scenarios.
-
-### 7. Law 2, Law 6
-Law 2 (collateral, rolling exposure, long-tail reserve) is mostly
-quantitative parameters plus Law 6 procedure. Law 6 (sortition panels,
-recusal, bounded appeals, finality, fee pool ranking) — appeal tiers are
-needed by AS.10 authorship question 8 and should be modelled as powers
-with a tier counter and a finality fact. Invariant 12 (bounded
-adjudication) is a bound on the tier counter.
-
-### 8. Veil projection, with a preservation theorem
-Only after the semantics is stable. Lower `Authorized (law P)` plus the
-explicitly re-added unlawful events to a Veil transition system; prove
-the lowering preserves the properties the owner relies on. The
-operational view (`Law.operationalView`) already prints the shape and
-lists what the restriction removes — that list is what the lowering must
-re-add for adversarial checks.
-
-### 9. Surface syntax (SPL proper)
-Last. A Lean syntax extension whose elaborator produces the existing AST
-values, so nothing new enters the trusted base. Generate the string
-tables now hand-written in `NonInterference.lean`. Literate format: the
-English clause and the declaration side by side, Catala-style.
+### Phase 4 — Verified Reference Substrate Modules & CLI Simulation (Gap 4)
+- Implement verified reference modules for the three Substrate Assumptions:
+  1. `SPL/Substrate/Attestation.lean`: `AttestedStateMachine` (private-key state binding, time-bounded host leases, migration checkpoint verification, quarantined restore fencing, minimal channel/advocacy isolation, local partition revocation, and cryptographic key erasure) + theorem `substrate_single_authority_and_erasure`.
+  2. `SPL/Substrate/Sortition.lean`: `selectSortitionPanel` over bonded `ArbiterCandidate`s excluding `isRelated` parties and bounding sybil-cluster weight + theorem `sortition_panel_independent_and_unbiased`.
+  3. `SPL/Substrate/Settlement.lean`: `ContestableValuationFeed` (with Law 6 contestation window) and `executeAtomicSettlement` (escrow lock, 5-rank fee-pool waterfall, and retirement/royalty split).
+- Extend `Main.lean` with `spl sim [scenario.json]` to run and inspect full quantitative multi-entity `ProtocolWorldState` simulations.
 
 ## 5. Open authorship questions (route to the owner; do not resolve)
 
