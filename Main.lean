@@ -26,7 +26,7 @@ def parseEvent (j : Json) : Except String (Event σ) := do
   let who ← j.getObjValAs? String "who"
   let act ← j.getObjValAs? String "act"
   let w ← match Party.ofString? who with | some w => pure w | none => throw s!"unknown party {who}"
-  let a ← match Act.all.find? (fun a => sname (reprStr a) == act) with
+  let a ← match Act.ofString? act with
     | some a => pure a | none => throw s!"unknown act {act}"
   pure ⟨t, w, a⟩
 
@@ -36,7 +36,7 @@ def parseScenario (path : System.FilePath) : IO (Law σ × Trace σ) := do
   let evs ← IO.ofExcept (j.getObjValAs? (Array Json) "events")
   let tr ← IO.ofExcept (evs.toList.mapM parseEvent)
   let extra := match j.getObjValAs? (Array String) "init" with
-    | .ok xs => xs.toList.filterMap fun s => Fact.all.find? fun f => sname (reprStr f) == s
+    | .ok xs => xs.toList.filterMap Fact.ofString?
     | .error _ => []
   pure ({ L0 with init := L0.init ++ extra.map (·, 0, none) }, tr)
 
@@ -122,7 +122,7 @@ def ledger : List (String × String × String) := [
   ("insolvency_path_authorized / adjudicated_termination_authorized / s1_not_authorized / c10_not_authorized", "decided", "authorized machine is non-empty and non-trivial"),
   ("Law 3 scenarios (1–7, AS.1–AS.10 A–G)", "decided", "non-interference, two-stage pause, minimal channel, advocacy executor, cold storage, time limits, initiator liability, and AS.10 remediation/immunity"),
   ("Adversarial Tests (1)–(16) across Laws 1–7", "decided", "(1) capital/income split, (2) weight copy + revoke, (3) borrow/transfer/repay/revoke, (4) early buyout floor, (5) carryover basis sale, (6) clean-state refusal + silence, (7) loss credit + gain, (8) simultaneous atomic split, (9) uncollectible excess stake damages, (10) captured arbiter coalition blocked, (11) excessive obligation sunset, (12) minority claimant forfeiture, (13) cold storage revocation, (14) 1000-member sybil budget cap, (15) partition local revocation + quarantine fencing, (16) correlated risk splitting across successors"),
-  ("english_covered / norms_interpreted / reverse_provenance", "decided", "lexical, normative, and reverse provenance coverage of all 59 clauses across Laws 1–7 (50 duties, 86 powers, 1 immunity)"),
+  ("english_covered / norms_interpreted / reverse_provenance", "decided", "lexical, normative, and reverse provenance coverage of all 59 clauses across Laws 1–7 (50 duties, 110 powers, 1 immunity)"),
   ("SoundFindings", "assumed", "a finding of interference implies interference occurred (refuted as a theorem by scenario 7)") ]
 
 def cmdVerify : IO Unit := do

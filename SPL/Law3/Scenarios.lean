@@ -868,4 +868,21 @@ theorem law6_appeal_overturns_patch_and_finality_bars_repeat :
       [ev 10 .claimant .presentMateriallyNewEvidence,
        ev 11 .claimant .fileRepeatProceedingOnSameFacts]) = [] := by decide
 
+/-- Exact kernel-checked counts of all clauses, duties, powers, and immunities in `L0`. -/
+theorem law_counts :
+    clauses.length = 59 ∧
+    L0.duties.length = 50 ∧
+    L0.powers.length = 110 ∧
+    L0.immunities.length = 1 := by decide
+
+/-- Kernel-checked round-trip equivalence for the automatically derived `Party`
+CLI string table and parameterized `Fact.initiator` table in `NonInterference.lean`. -/
+theorem law3_stringTables_roundtrip :
+    let initTable := Surface.StringTable.param "initiator" Fact.initiator Party.table
+    (Party.all.all fun p => Party.ofString? (Party.table.toName p) == some p) = true ∧
+    (initTable.all.all fun f => initTable.ofString? (initTable.toName f) == some f) = true ∧
+    initTable.ofString? "initiator.third" = some (.initiator .third) ∧
+    initTable.ofString? "initiator.claimant" = some (.initiator .claimant) := by decide
+
 end SPL.Law3
+

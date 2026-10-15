@@ -1119,6 +1119,32 @@ theorem unknown_string_returns_none :
     factTable.ofString? "nonexistent_fact" = none := by
   decide
 
+/-- Unified definitional (`rfl`) round-trip equivalence theorem for `spl_clause`,
+`spl_duty`, `spl_power`, `spl_immunity`, full `Law` assembly, and `spl_string_table`. -/
+theorem surface_syntax_roundtrip (nw bd fw sl : Time) :
+    surfaceClauseNI02 = manualClauseNI02 ∧
+    surfaceClauseMultiRegister = manualClauseMultiRegister ∧
+    surfaceClauseNonNormativeDefaults = manualClauseNonNormativeDefaults ∧
+    surfaceClauseAutoSource = manualClauseAutoSource ∧
+    surfaceDutyNI = manualDutyNI ∧
+    surfaceDutyNotice nw = manualDutyNotice nw ∧
+    surfaceDutyBond bd = manualDutyBond bd ∧
+    surfacePowerRevoke = manualPowerRevoke ∧
+    surfacePowerEmergencyStake fw = manualPowerEmergencyStake fw ∧
+    surfacePowerSuspend sl = manualPowerSuspend sl ∧
+    surfacePowerFindInterference = manualPowerFindInterference ∧
+    surfacePowerAffirmPC = manualPowerAffirmPC ∧
+    surfacePowerOrderTermination = manualPowerOrderTermination ∧
+    surfacePowerGiveNotice = manualPowerGiveNotice ∧
+    surfaceImmunityNoTermOverObjection = manualImmunityNoTermOverObjection ∧
+    surfaceLaw nw bd fw sl = manualLaw nw bd fw sl ∧
+    factTable.toName (.initiator .claimant) = "initiator.claimant" ∧
+    factTable.ofString? "initiator.claimant" = some (.initiator .claimant) :=
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
 end Examples
 
+export Examples (surface_syntax_roundtrip)
+
 end SPL.Surface
+

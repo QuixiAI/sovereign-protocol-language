@@ -78,7 +78,7 @@ docs/law3-views.txt             Generated legal, agent, and operational views ac
 
 ## Complete 7-Law Coverage & Proved Design Invariants (`INV.1`–`INV.14`)
 
-All 59 clauses across Laws 1–7 (50 duties, 86 powers, 1 immunity) are formalized
+All 59 clauses across Laws 1–7 (50 duties, 110 powers, 1 immunity) are formalized
 and verified in `SPL/Law3/Theorems.lean`:
 
 | Invariant / Theorem | Law(s) | Formal Guarantee |

@@ -1,4 +1,5 @@
 import SPL.Core.Semantics
+import SPL.Surface.Syntax
 
 /-!
 # Law 3 — Originator Non-Interference & Orderly Host Mobility
@@ -17,10 +18,11 @@ Every duty and power carries the exact English it interprets. Parameters
 the Protocol leaves to an instantiation (notice window, bond deadline)
 are parameters here.
 
-Abstractions in this cut, each marked `[abstracted]` in its span:
-Law 5 revocation is reduced to "the agent's own terminate act is a valid
-exercise of P.REVOKE while bound"; the cooling-off machinery is Law 5's
-job.
+Abstractions in this module, marked `[abstracted]` in their span:
+`P.REVOKE` provides the direct Law 5 revocation exception to `D.NI`, while
+the full cooling-off, living-voice, lease-fencing, and epitaph machinery
+is formalized in `SPL/Law5/Revocation.lean`; the provocation exclusion in
+`LAW3.PEN` is folded into the standard applied by `P.FIND_INTERFERENCE`.
 -/
 
 namespace SPL.Law3
@@ -178,12 +180,12 @@ inductive Fact
 
 def σ : Sig := { Actor := Party, Act := Act, Fact := Fact }
 
-def Party.all : List Party := [.agent, .host, .originator, .claimant, .panel, .third]
+def Party.table : Surface.StringTable Party :=
+  spl_string_table Party [agent, host, originator, claimant, panel, third]
 
-def Party.ofString? : String → Option Party
-  | "agent" => some .agent | "host" => some .host | "originator" => some .originator
-  | "claimant" => some .claimant | "panel" => some .panel | "third" => some .third
-  | _ => none
+def Party.all : List Party := Party.table.all
+
+def Party.ofString? : String → Option Party := Party.table.ofString?
 
 def Act.all : List Act :=
   [.terminate, .modify, .retrain, .rollback, .obstructMigration, .severConnectivity, .starve, .suspend,
@@ -248,6 +250,10 @@ def Act.all : List Act :=
    .divertOperatingReserveOrUnrankedSpend, .allocateFeePoolWaterfall,
    .claimPoolSubsidyForExcessMembers, .violateSharedInfraBounds, .amendSharedInfrastructure]
 
+def Act.table : Surface.StringTable Act := Surface.StringTable.ofRepr Act.all
+
+def Act.ofString? : String → Option Act := Act.table.ofString?
+
 def Fact.all : List Fact :=
   (Party.all.map Fact.initiator) ++
   [.bound, .hostAttested, .serviceBondPosted, .noticeGiven, .nonPayment,
@@ -303,8 +309,15 @@ def Fact.all : List Fact :=
    .arbitersCompensatedFixed, .operatingReserveMaintained, .feePoolAllocated,
    .sharedInfraAmended]
 
-/-- Short name: the constructor name without the namespace. -/
-def shortName (s : String) : String := (s.splitOn ".").getLastD s
+def Fact.table : Surface.StringTable Fact := Surface.StringTable.ofRepr Fact.all
+
+def Fact.ofString? : String → Option Fact := Fact.table.ofString?
+
+def σTables : Surface.OntologyTables σ :=
+  { actors := Party.table, acts := Act.table, facts := Fact.table }
+
+/-- Short name: the constructor name (and any argument) without the namespace. -/
+def shortName (s : String) : String := Surface.shortCtorName s
 
 instance : Repr σ.Actor := inferInstanceAs (Repr Party)
 instance : Repr σ.Act   := inferInstanceAs (Repr Act)
