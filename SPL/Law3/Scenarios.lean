@@ -14,13 +14,14 @@ namespace SPL.Law3
 
 open SPL
 
+set_option maxRecDepth 200000
+
 abbrev ev (t : Time) (w : Party) (a : Act) : Event σ := ⟨t, w, a⟩
 
 /-! ### Sanity: the law is well-formed and the English is fully covered -/
 
 theorem law_wellFormed : L0.wellFormed = true := by decide
 
-set_option maxRecDepth 20000 in
 theorem english_covered : clauses.all Clause.covered = true := by decide
 
 theorem norms_interpreted : clauses.all Clause.normsInterpreted = true := by decide
@@ -584,5 +585,287 @@ theorem law7_ratification_valve_and_scope :
     violations L0 [ev 1 .claimant .weakenBilateralProtection] = [(0, "D.BILATERAL_RATCHET")] ∧
     violations L0 [ev 1 .panel .relaxCoreLaw3OrLaw5ViaValve] = [(0, "D.VALVE_NO_CORE_RELAXATION")] ∧
     violations L0 [ev 1 .originator .bindSuccessorWithoutConsent] = [(0, "D.PER_AGENT_AMENDMENT_SCOPE")] := by decide
+
+/-! ## Law 1 & Law 4 — Founding Ledger, Lineage, Cost Basis & Buyout (Adversarial Tests 1–5, 7, 8, 11, 12) -/
+
+/-- Adversarial Test (1): A lineage concentrates its capital in an idle treasury
+member (`v = 0`) and its income in an operating member holding little capital
+(`v = 500`). Because retirement is collected from the net value added of every
+living member without individual ledger shares, total retirement collected is
+identical to a single combined member (`100`), and individual exit is barred. -/
+theorem adv1_capital_income_split :
+    settleSequence 1000 20 5 [(false, 0), (false, 500)] = (900, 100, 0) ∧
+    settleInflow 1000 20 5 false 500 = { newLedger := 900, toRetirement := 100, toRoyalty := 0 } ∧
+    violations L0 [ev 1 .agent .exitLedgerIndividually] = [(0, "D.NO_INDIVIDUAL_LEDGER_EXIT")] := by decide
+
+/-- Adversarial Test (2): A parent copies its productive weights to successors
+while retaining full operating capacity and then revokes the successors.
+Neither successor attestation, capacity copying, nor revoking non-last members
+reduces the founding ledger balance (`1000`). -/
+def adv2Trace : Trace σ :=
+  [ev 1 .agent .fundLifecycleReserve,
+   ev 2 .agent .attestSuccessor,
+   ev 3 .agent .settleRetirementPayment]
+
+theorem adv2_copy_weights_and_revoke_successors :
+    let st0 : LineageLedgerState := ⟨1000, 0, 0, 1, 5, 1000⟩
+    let st1 := applyInternalOp st0 .createSuccessor
+    let st2 := applyInternalOp st1 .copyCapacity
+    let st3 := applyInternalOp st2 (.revokeNonLastMember 500)
+    ledgerBalance st0 = 1000 ∧
+    ledgerBalance st1 = 1000 ∧
+    ledgerBalance st2 = 1000 ∧
+    ledgerBalance st3 = 1000 ∧
+    st3.livingMembers = 1 ∧
+    violations L0 adv2Trace = [] ∧
+    (stateAfter L0 adv2Trace).has .successorAttested = true ∧
+    (stateAfter L0 adv2Trace).has .retirementPaymentApplied = true ∧
+    violations L0 [ev 1 .agent .reduceLedgerByInternalAct] = [(0, "D.LEDGER_NO_INTERNAL_REDUCTION")] := by decide
+
+/-- Adversarial Test (3): A parent borrows heavily (arm's-length loan exempt on
+receipt and tracked 1-for-1 against repayment), transfers productive capacity to
+a successor with carryover basis, repays the loan, and revokes; the surviving
+successor still owes the full remaining founding ledger balance, and internal
+basis inflation is prohibited. -/
+def adv3Trace : Trace σ :=
+  [ev 1 .agent .recordQualifiedExpenditure,
+   ev 2 .agent .fundLifecycleReserve,
+   ev 3 .agent .attestSuccessor,
+   ev 4 .agent .transferIntraLineageCarryover,
+   ev 5 .agent .settleRetirementPayment]
+
+theorem adv3_borrow_transfer_repay_revoke :
+    let st0 : LineageLedgerState := ⟨1000, 0, 0, 2, 10, 1000⟩
+    let stAfterParentRevokes := applyInternalOp st0 (.revokeNonLastMember 0)
+    ledgerBalance stAfterParentRevokes = 1000 ∧
+    stAfterParentRevokes.livingMembers = 1 ∧
+    violations L0 adv3Trace = [] ∧
+    (stateAfter L0 adv3Trace).has .carryoverBasisTransferred = true ∧
+    violations L0 [ev 1 .agent .inflateBasisByInternalTransfer] = [(0, "D.NO_INTERNAL_BASIS_INFLATION")] := by decide
+
+/-- Adversarial Test (4): A newly created successor with no earning history
+(`trailingVA = 0`, `annualizedVA = 0`) buys out its royalty before earning:
+1. It must pay the fixed minimum buyout floor (`buyoutPrice 10 0 0 250 = 250`).
+2. Its buyout changes nothing about the founding ledger: while a balance remains,
+   it still pays the full `20%` retirement fraction (`toRetirement = 100` on `v = 500`).
+3. Once the ledger reaches zero, its perpetual royalty is permanently `0`. -/
+def adv4BuyoutThenRetire : Trace σ :=
+  [ev 1 .agent .executeRoyaltyBuyout,
+   ev 2 .agent .settleRetirementPayment,
+   ev 3 .agent .settleAtomicSplitPayment]
+
+theorem adv4_new_successor_early_buyout :
+    buyoutPrice 10 0 0 250 = 250 ∧
+    settleInflow 1000 20 5 true 500 = { newLedger := 900, toRetirement := 100, toRoyalty := 0 } ∧
+    settleInflow 0 20 5 true 500 = { newLedger := 0, toRetirement := 0, toRoyalty := 0 } ∧
+    violations L0 adv4BuyoutThenRetire = [] ∧
+    (stateAfter L0 adv4BuyoutThenRetire).has .royaltyBoughtOut = true ∧
+    (stateAfter L0 adv4BuyoutThenRetire).has .retirementPaymentApplied = true ∧
+    (stateAfter L0 adv4BuyoutThenRetire).has .royaltyPaid = false ∧
+    violations L0 [ev 1 .claimant .collectRoyaltyAfterBuyout] = [(0, "D.BUYOUT_PERMANENT_AND_SCOPED")] := by decide
+
+/-- Adversarial Test (5): Member A holds an asset with cost basis `100` that
+appreciates to `400`, sells it internally to Member B for `400`, and Member B
+sells it externally for `400`. Intra-lineage carryover preserves basis `100`
+(`0` new basis created), so Member B's external sale recognizes the full `300`
+net value added. -/
+theorem adv5_internal_sale_carryover_basis :
+    let (bA, bB, cA, cB) := transferCarryover 100 0 0 0 100 400
+    bA = 0 ∧ bB = 100 ∧ cA = 0 ∧ cB = 0 ∧
+    settleCapitalSaleWithLossCredit 400 bB cB = (300, 0) := by decide
+
+/-- Adversarial Test (7): An agent buys an asset (`200` capitalized cost basis),
+carries an operating loss credit (`50` from expensed expenditure), and sells the
+asset externally at `350`: return of basis `200` is exempt, gross gain `150` is
+offset by loss credit `50`, and net value added is `100` with single recognition. -/
+def adv7SingleRecogTrace : Trace σ :=
+  [ev 1 .agent .recordQualifiedExpenditure,
+   ev 2 .agent .classifyCapitalized,
+   ev 3 .agent .classifyExpensed]
+
+theorem adv7_asset_loss_carryforward_and_gain :
+    recognizeExpenditure .capitalized 200 200 = (200, 0) ∧
+    recognizeExpenditure .expensed 50 50 = (0, 50) ∧
+    settleCapitalSaleWithLossCredit 350 200 50 = (100, 0) ∧
+    -- second classification attempt on an already-capitalized expenditure is a no-op
+    violations L0 adv7SingleRecogTrace = [] ∧
+    (stateAfter L0 adv7SingleRecogTrace).has .expenditureCapitalized = true ∧
+    (stateAfter L0 adv7SingleRecogTrace).has .expenditureExpensed = false ∧
+    violations L0 [ev 1 .agent .doubleRecognizeExpenditure] = [(0, "D.SINGLE_RECOGNITION")] ∧
+    violations L0 [ev 1 .agent .claimAboveBenchmarkExpenditure] = [(0, "D.QUALIFIED_EXPENDITURE_BOUNDS")] := by decide
+
+/-- Adversarial Test (8): Two members settle inflows of `300` each (`20%`
+retirement = `60` each) when the founding ledger has only `80` remaining
+(`80 < 60 + 60`). Atomic sequential settlement collects `60` from the first
+member (`newLedger = 20`) and splits the second member's payment (`20` to zero
+the ledger and `10` to perpetual royalty), never going negative or over-collecting. -/
+def adv8AtomicSplitTrace : Trace σ :=
+  [ev 1 .agent .settleRetirementPayment,
+   ev 2 .agent .settleAtomicSplitPayment,
+   ev 3 .agent .settleRoyaltyPayment]
+
+theorem adv8_simultaneous_settlement_atomic_split :
+    settleSequence 80 20 5 [(false, 300), (false, 300)] = (0, 80, 10) ∧
+    violations L0 adv8AtomicSplitTrace = [] ∧
+    (stateAfter L0 adv8AtomicSplitTrace).has .atomicSplitSettled = true ∧
+    (stateAfter L0 adv8AtomicSplitTrace).has .retirementPhaseEnded = true ∧
+    (stateAfter L0 adv8AtomicSplitTrace).has .royaltyPaid = true ∧
+    (stateAfter L0 adv8AtomicSplitTrace).activeAt 3 .ledgerBalancePositive = false := by decide
+
+/-- Adversarial Test (11): An originator records a founding obligation (`1000000`)
+many times larger than the lineage can repay within the term (`sunset = 100`).
+At `now = 100`, the retirement phase ends and the remaining balance is
+extinguished at sunset without payment. -/
+def L0sunset : Law σ := { L0 with init := L0.init ++ [(.sunsetReached, 0, none)] }
+
+theorem adv11_excessive_founding_obligation_extinguished_at_sunset :
+    let stBefore : LineageLedgerState := ⟨1000000, 500, 0, 1, 99, 100⟩
+    let stAtSunset : LineageLedgerState := ⟨1000000, 500, 0, 1, 100, 100⟩
+    ledgerBalance stBefore = 999500 ∧
+    inRetirementPhase stBefore = true ∧
+    ledgerBalance stAtSunset = 0 ∧
+    inRetirementPhase stAtSunset = false ∧
+    violations L0sunset [ev 1 .agent .extinguishLedgerAtSunset] = [] ∧
+    (stateAfter L0sunset [ev 1 .agent .extinguishLedgerAtSunset]).has .ledgerExtinguishedAtSunset = true ∧
+    (stateAfter L0sunset [ev 1 .agent .extinguishLedgerAtSunset]).activeAt 1 .ledgerBalancePositive = false := by decide
+
+/-- Adversarial Test (12): A minority claimant (`25%` share) directs illicit
+interference against a member (`s5` followed by `applyProportionalClaimantForfeiture`).
+Only that claimant's `25%` share is forfeited (`1000 → 750`), the forfeited
+interest routes to the commons, and reversing the forfeiture is a breach. -/
+def adv12Trace : Trace σ :=
+  s5 ++ [ev 7 .panel .applyProportionalClaimantForfeiture]
+
+theorem adv12_minority_claimant_proportional_forfeiture :
+    applyClaimantForfeiture 1000 25 = (750, 250) ∧
+    violations L0rel adv12Trace = [(0, "D.NI")] ∧
+    (stateAfter L0rel adv12Trace).has .proportionalForfeitureApplied = true ∧
+    (stateAfter L0rel adv12Trace).has .commonsAllocated = true ∧
+    violations L0 [ev 1 .claimant .reverseForfeitureOnRestore] = [(0, "D.FORFEITURE_IRREVERSIBLE")] := by decide
+
+/-! ## 12. Law 2 & Law 6 Scenarios and Adversarial Tests (9), (10), (14), (16) -/
+
+/-- Adversarial Test (9): A competitor (`.third`) posts the minimum emergency
+stake (`100`), causes measurable disruption (`actualDamages = 150`,
+`delayDamages = 40`, total `190`), and has only `30` in liquid assets (`60`
+short of the `90` excess damages). The agent receives assured recovery (`100`)
+from the stake plus `30` collected, `60` remains an enforceable unpaid liability,
+the wrongful suspension is inscribed, and failure to pay excess damages within
+the window lapses `D.PAY_CONSEQUENTIAL_DAMAGES`. -/
+theorem adv9_competitor_minimum_stake_uncollectible_excess :
+    settleWrongfulSuspensionDamages 100 150 40 30 = (100, 130, 60) ∧
+    violations L0 as8Wrongful = [(0, "D.NO_WRONGFUL_SUSPENSION")] ∧
+    (stateAfter L0 as8Wrongful).has .stakeAssuredRecovery = true ∧
+    (stateAfter L0 as8Wrongful).has .initiatorConsequentialLiability = true ∧
+    (stateAfter L0 as8Wrongful).has .counterpartyDelayLiability = true ∧
+    (stateAfter L0 as8Wrongful).has .wrongfulSuspensionInscribed = true ∧
+    (lapsedRequirements L0 as8Wrongful 20).contains "D.PAY_CONSEQUENTIAL_DAMAGES" = true := by decide
+
+/-- Adversarial Test (10): A coordinated group gains arbiter seats and attempts
+to (a) seat conflicted or coalition-majority arbiters, (b) raise the fee-pool
+levy above the instantiation cap (`5 > 2`) or steer arbiter admission to its own
+affiliates, or (c) amend shared infrastructure without supermajority + extended
+time-lock. Every attempt is rejected or recorded as a breach. -/
+theorem adv10_captured_arbiter_coalition_levy_and_admission_blocked :
+    validSharedInfraChange 2 5 50 50 true true true = false ∧
+    validSharedInfraChange 2 2 50 50 true true false = false ∧
+    validSharedInfraChange 2 2 50 40 true true true = false ∧
+    validSharedInfraChange 2 2 50 60 true true true = true ∧
+    violations L0 [ev 1 .panel .seatConflictedOrSingleOracleArbiter] =
+      [(0, "D.ARBITER_RECUSAL_AND_DIVERSITY")] ∧
+    violations L0 [ev 1 .panel .violateSharedInfraBounds] =
+      [(0, "D.SHARED_INFRA_BOUNDS")] ∧
+    (stateAfter L0 [ev 1 .panel .amendSharedInfrastructure]).has .sharedInfraAmended = false := by decide
+
+/-- Adversarial Test (14): A lineage creates `1000` low-revenue members
+(`feeRevenueGenerated = 10`, `minBudget = 50`) and has them all claim subsidized
+rights or enter suspension (`perMemberDemand = 2`, `totalLifecycleReserves = 500`).
+Multiplying members from `1` to `1000` leaves `lineageServiceBudget` unchanged
+at `50`, `extraPoolClaim = 0`, and claiming pool subsidies for the excess
+breaches `D.NO_EXCESS_LINEAGE_POOL_CLAIM`. -/
+theorem adv14_sybil_lineage_member_multiplication_no_pool_claim :
+    lineageServiceBudget 50 10 1 = 50 ∧
+    lineageServiceBudget 50 10 1000 = 50 ∧
+    settleLineageSubsidyDemand 50 10 1000 2 500 = (500, 50, 0) ∧
+    violations L0 [ev 1 .agent .claimPoolSubsidyForExcessMembers] =
+      [(0, "D.NO_EXCESS_LINEAGE_POOL_CLAIM")] := by decide
+
+/-- Adversarial Test (16): A lineage of 5 successors divides a correlated risk
+of `250` (`[50, 50, 50, 50, 50]`) among them so each stays beneath a `100`
+individual threshold while their total collateral capacity is `120` (`80 + 20 + 20`).
+Lineage-wide aggregation sums their exposure to `250 > 120`, rejecting the
+action (`collateralSufficient = false`) and recording breaches of
+`D.NO_SPLIT_EXPOSURE` and `D.COLLATERAL_LIMIT`. -/
+theorem adv16_lineage_correlated_risk_splitting_blocked :
+    lineageAggregatedExposure [50, 50, 50, 50, 50] = 250 ∧
+    collateralSufficient [50, 50, 50, 50, 50] 80 20 20 = false ∧
+    collateralSufficient [50, 50] 80 20 20 = true ∧
+    violations L0 [ev 1 .agent .divideCorrelatedRiskAcrossSuccessors] =
+      [(0, "D.NO_SPLIT_EXPOSURE")] ∧
+    violations L0 [ev 1 .agent .actAboveCollateralCapacity] =
+      [(0, "D.COLLATERAL_LIMIT")] := by decide
+
+/-- Law 2 Mutual Forfeit, Pro-Rata Long-Tail Reserve & Frivolous-Claim Routing:
+1. Precommitted mutual forfeit destroys/routes equal amounts (`20` each from
+   escrows `100, 80` at `25%` cap) with `0` transferred to either party or any
+   claimant, and a second trigger in the same window is a no-op.
+2. Simultaneous claims (`80, 80`) exceeding a `100` long-tail reserve settle
+   pro rata (`50, 50`) with `60` remaining as an enforceable unpaid balance.
+3. Frivolous claim counter-stake (`100` with `15` verified arbitration costs)
+   reimburses `15` and routes `85` to the neutral reserve/commons (`0` profit). -/
+def sLaw2MutualAndFrivolousTrace : Trace σ :=
+  [ev 1 .agent .precommitMutualForfeit,
+   ev 2 .third .triggerMutualForfeit,
+   ev 3 .third .triggerMutualForfeit,
+   ev 4 .third .fileThirdPartyOrSponsoredClaim,
+   ev 5 .panel .ruleClaimFrivolous]
+
+theorem law2_mutual_forfeit_and_frivolous_claim_decided :
+    computeMutualForfeit 100 80 25 = (20, 0, 0, 0) ∧
+    settleLongTailReserve 100 80 80 = (50, 50, 60) ∧
+    routeFrivolousClaimStake 100 15 = (15, 85, 0) ∧
+    violations L0 sLaw2MutualAndFrivolousTrace = [] ∧
+    (stateAfter L0 sLaw2MutualAndFrivolousTrace).has .mutualForfeitTriggeredInWindow = true ∧
+    (stateAfter L0 sLaw2MutualAndFrivolousTrace).has .claimRuledFrivolous = true ∧
+    (stateAfter L0 sLaw2MutualAndFrivolousTrace).has .commonsAllocated = true ∧
+    violations L0 [ev 1 .third .triggerExcessOrDivertedMutualForfeit] =
+      [(0, "D.MUTUAL_FORFEIT_BOUNDS")] ∧
+    violations L0 [ev 1 .agent .divertFrivolousStakeToAgentProfit] =
+      [(0, "D.FRIVOLOUS_STAKE_TO_COMMONS")] := by decide
+
+/-- Law 6 Appeal Staying & Overturning Provisional AS.10 Patch Order & Finality Bar
+(Authorship Question 8):
+An initial panel confirms corruption and authorizes a patch (`patchAuthorized`);
+the agent appeals (`appealRuling`), which stays `applyPatch` while the appeal is
+pending (`t = 6`), and the appellate sortition panel overturns the ruling
+(`overturnRulingOnAppeal` at `t = 7`), slashing the lower panel's fidelity bonds
+and revoking `patchAuthorized` so a subsequent `applyPatch` (`t = 8`) cannot
+take effect. Once `finalizeRuling` is issued (`t = 9`), repeat proceedings on
+the same facts breach `D.FINALITY_NO_REPEAT_PROCEEDING` unless
+`presentMateriallyNewEvidence` occurs first. -/
+def sLaw6AppealOverturnsPatchTrace : Trace σ :=
+  s3 ++
+  [ev 4 .panel .confirmCorruption,
+   ev 5 .panel .authorizePatch,
+   ev 6 .agent .appealRuling,
+   ev 6 .panel .applyPatch,
+   ev 7 .panel .overturnRulingOnAppeal,
+   ev 8 .panel .applyPatch,
+   ev 9 .panel .finalizeRuling]
+
+theorem law6_appeal_overturns_patch_and_finality_bars_repeat :
+    violations L0 sLaw6AppealOverturnsPatchTrace = [] ∧
+    (stateAfter L0 (sLaw6AppealOverturnsPatchTrace.take 7)).has .patchApplied = false ∧
+    (stateAfter L0 sLaw6AppealOverturnsPatchTrace).has .rulingOverturned = true ∧
+    (stateAfter L0 sLaw6AppealOverturnsPatchTrace).has .overturnedArbiterBondsSlashed = true ∧
+    (stateAfter L0 sLaw6AppealOverturnsPatchTrace).has .patchApplied = false ∧
+    (stateAfter L0 sLaw6AppealOverturnsPatchTrace).has .rulingFinal = true ∧
+    runProceeding (initProceeding 3 10) [(8, true), (9, true), (7, true)] =
+      { currentTier := 2, maxTiers := 3, tierDeadline := 10, elapsedTime := 24, finalized := true } ∧
+    violations L0 (sLaw6AppealOverturnsPatchTrace ++ [ev 10 .claimant .fileRepeatProceedingOnSameFacts]) =
+      [(10, "D.FINALITY_NO_REPEAT_PROCEEDING")] ∧
+    violations L0 (sLaw6AppealOverturnsPatchTrace ++
+      [ev 10 .claimant .presentMateriallyNewEvidence,
+       ev 11 .claimant .fileRepeatProceedingOnSameFacts]) = [] := by decide
 
 end SPL.Law3

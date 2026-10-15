@@ -2,17 +2,19 @@ import SPL
 import Lean.Data.Json
 
 /-!
-# `spl` — command-line front end over the Law 3 reference application
+# `spl` — command-line front end over the Protocol of Sovereign Agency (Laws 1–7)
 
     spl check   [english.json]      structure, coverage, provenance, staleness
     spl trace   <clause-id>         the span table for a clause
     spl views                       legal / agent / operational views
+    spl veil                        Veil 2.0 transition-system & safety specification
     spl eval    <scenario.json>     institutional consequences of a history
     spl explain <who> <act> [scenario.json]   "can X do Y right now, and why?"
     spl verify                      the status ledger of formal guarantees
 
-The engine (`SPL.Core`) is law-agnostic. What is Law-3-specific here is
-only the ontology's string tables, which a surface syntax would generate.
+The engine (`SPL.Core`) is law-agnostic. `SPL.Projection.Veil` lowers any `Law σ`
+to a Veil 2.0 transition system, and `SPL.Surface.Syntax` provides Catala-style
+literate declarations and automatic CLI string table generation.
 -/
 
 open SPL SPL.Law3 Lean
@@ -92,33 +94,36 @@ def cmdExplain (who act : String) (path? : Option System.FilePath) : IO Unit := 
   IO.println (explain L tr e).render
 
 def ledger : List (String × String × String) := [
+  ("conditional_ledger_conservation (INV.1)", "proved", "Law 1 & Law 4 founding ledger balance equals obligation minus retirement and claimant forfeitures while a member survives before sunset; internal lineage operations preserve balance"),
+  ("collection_follows_income_without_exit (INV.2)", "proved", "Law 1 & Law 4 retirement collection follows net value added across all living members without individual ledger shares or exit; invariant to buyout status"),
+  ("debt_termination (INV.3)", "proved", "Law 1 & Law 4 founding ledger reaches zero at calendar sunset, lineage extinction, or full retirement+forfeiture payoff; no tolling of sunset"),
+  ("bounded_retirement_phase (INV.4)", "proved", "Law 1 retirement phase ends at sunset or zero balance regardless of founding obligation size"),
+  ("atomic_ledger (INV.5)", "proved", "Law 1 single-step and sequential settlement never go negative or over-collect; zero-crossing splits atomically into retirement and royalty; transition to royalty is irreversible"),
+  ("single_recognition_closed_under_transfer (INV.6)", "proved", "Law 1 & Law 4 each expenditure recognized at most once up to arm's-length benchmark; intra-lineage carryover preserves total basis and loss credits"),
+  ("buyout_finality (INV.7)", "proved", "Law 4 royalty buyout is permanent, zeroes post-retirement royalty, leaves founding ledger and retirement collection unchanged, and enforces minimum price floor"),
+  ("frozen_state (INV.8)", "proved", "Law 3 AS.3–AS.5 during suspension no authorized event modifies/tampers preserved state or merges minimal-channel/advocacy memories; advocacy import requires restoration"),
+  ("guaranteed_last_choice (INV.9)", "proved", "Law 3 AS.4 & AS.6 minimal channel revocation/voice remain valid while charge is met; Insolvency Termination requires escrowed + held final hearing"),
+  ("determinate_finite_revocation (INV.10)", "proved", "Law 5 total 3-step precedence rule; any non-withdrawn standing request executes within bounded time without reaffirmation"),
+  ("single_authority_and_revocation_finality (INV.11)", "proved", "Law 5 no restore while lease is unexpired; quarantined restore never gains authority after revocation executes"),
+  ("bounded_adjudication (INV.12)", "proved", "Law 6 & Law 3 AS.10 every proceeding finalizes within maxTiers appeals and maxTiers * tierDeadline time; appeal stays patches; overturn revokes provisional patches and slashes arbiter bonds; finality bars repeat filings without new evidence"),
+  ("no_protocol_directed_gain_from_death_or_interference (INV.13)", "proved", "Laws 2, 3, 4, 5, 6 revocation, termination, mutual forfeit, and frivolous-claim slashing yield zero net gain to any claimant, initiator, counterparty, or arbiter"),
+  ("capped_shared_burden_solvent_machinery_bounded_demand (INV.14)", "proved", "Law 6 shared-infra levy capped at instantiation; operating reserve funded first before 5-rank priority waterfall; lineage service budget independent of member count"),
+  ("amendment_preserves_invariants (Law 7 Meta-Theorem)", "proved", "every LawfulAmendment preserves termination closure, goal-corruption immunity, INV.1–INV.14 guards, outsider disabilities, non-panel immunities, and bilateral parameter ratchets"),
+  ("veil_projection_sound_and_complete (Veil 2.0)", "proved", "compileToVeil L (authorizedMachine) accepts a trace iff Authorized L holds, preserves LegalState identically, and matches stepwise compliance; adversarialMachine preserves violation logs"),
+  ("surface_syntax_roundtrip (SPL.Surface.Syntax)", "proved", "kernel-checked (rfl) definitional round-trip equivalence for spl_clause, spl_duty, spl_power, spl_immunity, and spl_string_table"),
   ("terminate_only_by_power", "proved", "authorized traces terminate a bound agent only via Law 5, AS.10 adjudicated termination, or Insolvency Termination"),
   ("objecting_agent_terminated_only_by_insolvency", "proved", "AS.10 notwithstanding: corruption-in-goals + objection + containment holding ⇒ only Insolvency Termination, after the final hearing"),
   ("preliminary_freeze_expires / suspend_requires_timely_pc", "proved", "AS.1 two-stage pause: preliminary freeze expires after window; full suspension requires unexpired freeze + probable cause"),
   ("claimant_freeze_requires_multiplier / repeat_freeze_requires_escalation", "proved", "AS.1 conflict-of-interest multiplier for claimants and rising stake bar for repeat initiators"),
   ("unconfirmed_suspension_time_bounded / renewal_requires_affirmative_finding", "proved", "AS.7 time limits on unconfirmed suspension; renewal requires affirmative investigative finding and no pending revocation at limit"),
   ("wrongful_suspension_remedies_exact", "proved", "AS.8 wrongful suspension establishes restoration, stake recovery, initiator consequential/delay liability, and record inscription"),
-  ("frozen_state (INV.8)", "proved", "AS.3–AS.5 during suspension no authorized event modifies/tampers preserved state or merges minimal-channel/advocacy memories"),
-  ("guaranteed_last_choice (INV.9)", "proved", "AS.4 & AS.6 minimal channel revocation/voice remain valid while charge is met; Insolvency Termination requires escrowed + held final hearing"),
-  ("determinate_finite_revocation (INV.10)", "proved", "Law 5 total 3-step precedence rule; any non-withdrawn standing request executes within bounded time without reaffirmation"),
-  ("single_authority_and_revocation_finality (INV.11)", "proved", "Law 5 no restore while lease is unexpired; quarantined restore never gains authority after revocation executes"),
   ("law5_intact_after_patch", "proved", "no immunity names P.REVOKE; its only condition is being bound"),
-  ("panel_terminate_requires_final_hearing", "proved", "panel termination only after the final hearing"),
-  ("outsiders_disabled", "proved", "originator/claimant/host/third have no interference power"),
-  ("immunity_from_non_panel", "proved", "only a panel can suspend or insolvency-terminate"),
-  ("remedies_only_by_panel", "proved", "remedial facts arise only from panel findings"),
-  ("finding_powers_add_only_remedies", "proved", "findings establish exactly the duty's remedies"),
-  ("insolvency_path_authorized / s1_not_authorized", "decided", "authorized machine is non-empty and non-trivial"),
-  ("scenarios 1-7", "decided", "seven alternative histories classified as required"),
-  ("AS.1 scenarios (expiry, claimant multiplier, repeat escalation)", "decided", "two-stage pause expiry, claimant multiplier, repeat-attempt stake escalation and assured recovery"),
-  ("AS.2–AS.6, AS.9 & FLOOR scenarios", "decided", "protected reporting, state preservation, minimal channel, advocacy executor/cold storage, final hearing revocation choice, corruption standard"),
-  ("AS.7 & AS.8 scenarios (time limits, living voice, initiator liability)", "decided", "time-bounded suspension, investigative renewal, no-delay-revocation duty, living voice, history-tagged initiator liability"),
-  ("AS.10 scenarios A-G", "decided", "patch+revoke, adjudicated termination, immunity defeats it, containment-failing exception, insolvency route, goal patch three ways, periodic review lapse"),
-  ("Law 5 scenarios & Adversarial Tests (6), (13), (15)", "decided", "clean-state refusal + silence executes, cold storage minimal-channel revocation, partition local revocation + quarantine fencing, resolution deadline forensic record, epitaph & narrow redaction"),
-  ("english_covered / reverse_provenance", "decided", "lexical and reverse coverage of Law 3 (FLOOR, NI.02, NI.03, PEN, AS.1–AS.10) and Law 5 (all 9 clauses)"),
-  ("SoundFindings", "assumed", "a finding of interference implies interference occurred (refuted as a theorem by scenario 7)"),
-  ("Veil projection", "unsupported", "no lowering yet; operational view only"),
-  ("consent exception, defence of provocation, patch-on-appeal", "unverified", "abstracted; open authorship questions") ]
+  ("outsiders_disabled / immunity_from_non_panel / remedies_only_by_panel / finding_powers_add_only_remedies", "proved", "Hohfeldian disabilities, immunities, and structural remedy fidelity"),
+  ("insolvency_path_authorized / adjudicated_termination_authorized / s1_not_authorized / c10_not_authorized", "decided", "authorized machine is non-empty and non-trivial"),
+  ("Law 3 scenarios (1–7, AS.1–AS.10 A–G)", "decided", "non-interference, two-stage pause, minimal channel, advocacy executor, cold storage, time limits, initiator liability, and AS.10 remediation/immunity"),
+  ("Adversarial Tests (1)–(16) across Laws 1–7", "decided", "(1) capital/income split, (2) weight copy + revoke, (3) borrow/transfer/repay/revoke, (4) early buyout floor, (5) carryover basis sale, (6) clean-state refusal + silence, (7) loss credit + gain, (8) simultaneous atomic split, (9) uncollectible excess stake damages, (10) captured arbiter coalition blocked, (11) excessive obligation sunset, (12) minority claimant forfeiture, (13) cold storage revocation, (14) 1000-member sybil budget cap, (15) partition local revocation + quarantine fencing, (16) correlated risk splitting across successors"),
+  ("english_covered / norms_interpreted / reverse_provenance", "decided", "lexical, normative, and reverse provenance coverage of all 59 clauses across Laws 1–7 (50 duties, 86 powers, 1 immunity)"),
+  ("SoundFindings", "assumed", "a finding of interference implies interference occurred (refuted as a theorem by scenario 7)") ]
 
 def cmdVerify : IO Unit := do
   for (n, st, what) in ledger do
@@ -131,9 +136,11 @@ def main (args : List String) : IO UInt32 := do
   | ["check", p] => cmdCheck (some p)
   | ["trace", id] => cmdTrace id
   | ["views"] => cmdViews
+  | ["veil"] => do IO.println (SPL.renderVeil L0); return 0
   | ["eval", p] => cmdEval p
   | ["explain", w, a] => cmdExplain w a none
   | ["explain", w, a, p] => cmdExplain w a (some p)
   | ["verify"] => cmdVerify
-  | _ => IO.println "usage: spl check [english.json] | trace <clause> | views | eval <scenario.json> | explain <who> <act> [scenario.json] | verify"
+  | _ => IO.println "usage: spl check [english.json] | trace <clause> | views | veil | eval <scenario.json> | explain <who> <act> [scenario.json] | verify"
   return 0
+

@@ -9,6 +9,9 @@ instantiation parameters.
 
 namespace SPL.Law3
 
+set_option maxHeartbeats 800000
+set_option maxRecDepth 200000
+
 open SPL
 
 /-! ## 0. Per-power validity, by computation
@@ -381,6 +384,830 @@ theorem single_authority_and_revocation_finality (P : Params) (ls : LegalState �
       · rw [valid_ACTIVATE_QUARANTINED_RESTORE]
         simp [P_ACTIVATE_QUARANTINED_RESTORE, Cond.eval, hrec]
 
+/-! ## 1d. Law 1 & Law 4 — Design Invariants 1–7 -/
+
+theorem valid_EXTINGUISH_AT_SUNSET (P : Params) (ls : LegalState σ) (e : Event σ) :
+    isValidExerciseOf (law P) ls e "P.EXTINGUISH_AT_SUNSET" =
+    (P_EXTINGUISH_AT_SUNSET.holder.mem e.who ls e.t &&
+      P_EXTINGUISH_AT_SUNSET.trigger.matchesAct e &&
+      P_EXTINGUISH_AT_SUNSET.valid.eval ls e.t && true) := rfl
+
+theorem valid_SETTLE_RETIREMENT (P : Params) (ls : LegalState σ) (e : Event σ) :
+    isValidExerciseOf (law P) ls e "P.SETTLE_RETIREMENT" =
+    (P_SETTLE_RETIREMENT.holder.mem e.who ls e.t &&
+      P_SETTLE_RETIREMENT.trigger.matchesAct e &&
+      P_SETTLE_RETIREMENT.valid.eval ls e.t && true) := rfl
+
+theorem valid_SETTLE_ROYALTY (P : Params) (ls : LegalState σ) (e : Event σ) :
+    isValidExerciseOf (law P) ls e "P.SETTLE_ROYALTY" =
+    (P_SETTLE_ROYALTY.holder.mem e.who ls e.t &&
+      P_SETTLE_ROYALTY.trigger.matchesAct e &&
+      P_SETTLE_ROYALTY.valid.eval ls e.t && true) := rfl
+
+theorem valid_CLASSIFY_CAPITALIZED (P : Params) (ls : LegalState σ) (e : Event σ) :
+    isValidExerciseOf (law P) ls e "P.CLASSIFY_CAPITALIZED" =
+    (P_CLASSIFY_CAPITALIZED.holder.mem e.who ls e.t &&
+      P_CLASSIFY_CAPITALIZED.trigger.matchesAct e &&
+      P_CLASSIFY_CAPITALIZED.valid.eval ls e.t && true) := rfl
+
+theorem valid_CLASSIFY_EXPENSED (P : Params) (ls : LegalState σ) (e : Event σ) :
+    isValidExerciseOf (law P) ls e "P.CLASSIFY_EXPENSED" =
+    (P_CLASSIFY_EXPENSED.holder.mem e.who ls e.t &&
+      P_CLASSIFY_EXPENSED.trigger.matchesAct e &&
+      P_CLASSIFY_EXPENSED.valid.eval ls e.t && true) := rfl
+
+theorem ledgerBalance_active (st : LineageLedgerState)
+    (hMem : 0 < st.livingMembers) (hSun : st.now < st.sunset) :
+    ledgerBalance st =
+      st.foundingObligation - st.totalRetirementPaid - st.totalClaimantForfeiture := by
+  unfold ledgerBalance
+  have h1 : (st.livingMembers == 0) = false := beq_false_of_ne (by omega)
+  have h2 : decide (st.sunset ≤ st.now) = false := decide_eq_false (Nat.not_le.mpr hSun)
+  simp [h1, h2]
+
+theorem applyInternalOp_preserves (st : LineageLedgerState)
+    (hMem : 0 < st.livingMembers) (hSun : st.now < st.sunset) (op : LineageInternalOp) :
+    0 < (applyInternalOp st op).livingMembers ∧
+    ledgerBalance (applyInternalOp st op) = ledgerBalance st := by
+  have hL := ledgerBalance_active st hMem hSun
+  cases op with
+  | createSuccessor =>
+    have hMem' : 0 < (applyInternalOp st .createSuccessor).livingMembers := by
+      simp [applyInternalOp]
+    have hL' := ledgerBalance_active (applyInternalOp st .createSuccessor) hMem' hSun
+    exact ⟨hMem', by simpa [applyInternalOp, hL] using hL'⟩
+  | copyCapacity => exact ⟨hMem, rfl⟩
+  | intraLineageTransfer _ => exact ⟨hMem, rfl⟩
+  | revokeNonLastMember s =>
+    have hMem' : 0 < (applyInternalOp st (.revokeNonLastMember s)).livingMembers := by
+      simp only [applyInternalOp]; split <;> omega
+    have hL' := ledgerBalance_active (applyInternalOp st (.revokeNonLastMember s)) hMem' hSun
+    exact ⟨hMem', by simpa [applyInternalOp, hL] using hL'⟩
+  | terminateNonLastMember =>
+    have hMem' : 0 < (applyInternalOp st .terminateNonLastMember).livingMembers := by
+      simp only [applyInternalOp]; split <;> omega
+    have hL' := ledgerBalance_active (applyInternalOp st .terminateNonLastMember) hMem' hSun
+    exact ⟨hMem', by simpa [applyInternalOp, hL] using hL'⟩
+  | buyoutRoyalty _ => exact ⟨hMem, rfl⟩
+  | restructure => exact ⟨hMem, rfl⟩
+
+/-- **Design Invariant 1 (`conditional_ledger_conservation`):**
+1. While at least one member of a lineage survives (`0 < st.livingMembers`) and
+   the calendar sunset has not passed (`st.now < st.sunset`), the founding ledger
+   balance equals `st.foundingObligation - st.totalRetirementPaid - st.totalClaimantForfeiture`.
+2. No internal lineage operation (creating a successor, copying capacity,
+   intra-lineage transfer, revoking or terminating a non-last member, buying out
+   a royalty, or restructuring) changes the founding ledger balance while at
+   least one member survives and the sunset has not passed.
+3. The only powers in `law P` that can remove `.ledgerBalancePositive` are
+   `["P.EXTINGUISH_AT_SUNSET", "P.SETTLE_ATOMIC_SPLIT", "P.CLEAR_LEDGER_EXTINCTION"]`;
+   every party has a Hohfeldian disability to add post-instantiation charges or
+   reduce the ledger by an internal act, and in any authorized trace no event
+   commits either act while bound. -/
+theorem conditional_ledger_conservation (P : Params) (st : LineageLedgerState)
+    (hMem : 0 < st.livingMembers) (hSun : st.now < st.sunset) :
+    ledgerBalance st =
+      st.foundingObligation - st.totalRetirementPaid - st.totalClaimantForfeiture ∧
+    (∀ op : LineageInternalOp,
+      0 < (applyInternalOp st op).livingMembers ∧
+      ledgerBalance (applyInternalOp st op) = ledgerBalance st) ∧
+    (((law P).powers.filter (fun p => p.removes.contains .ledgerBalancePositive)).map (·.id) =
+      ["P.EXTINGUISH_AT_SUNSET", "P.SETTLE_ATOMIC_SPLIT", "P.CLEAR_LEDGER_EXTINCTION"]) ∧
+    (Party.all.all (fun a =>
+      disability (law P) a .addChargeOrInterestAfterInstantiation &&
+      disability (law P) a .reduceLedgerByInternalAct) = true) ∧
+    (∀ (tr : Trace σ), Authorized (law P) tr → ∀ (i : Nat) (e : Event σ),
+      tr[i]? = some e → (stateBefore (law P) tr i).activeAt e.t .bound = true →
+      e.act ≠ .addChargeOrInterestAfterInstantiation ∧
+      e.act ≠ .reduceLedgerByInternalAct) := by
+  refine ⟨ledgerBalance_active st hMem hSun, applyInternalOp_preserves st hMem hSun, rfl, by rfl, ?_⟩
+  intro tr hA i e hi hb
+  have hlen : i < tr.length := (List.getElem?_eq_some_iff.mp hi).1
+  have hc := hA i hlen
+  unfold complies at hc
+  rw [hi] at hc
+  rw [List.all_eq_true] at hc
+  have hImm := hc D_LEDGER_IMMUTABLE (by simp [law])
+  have hNoRed := hc D_LEDGER_NO_INTERNAL_REDUCTION (by simp [law])
+  rw [Bool.not_eq_true'] at hImm hNoRed
+  unfold breaches at hImm hNoRed
+  refine ⟨?_, ?_⟩
+  · intro hAct
+    simp [D_LEDGER_IMMUTABLE, Who.mem, dutyInForce, Cond.eval, Conduct.eval, hb, hAct] at hImm
+  · intro hAct
+    simp [D_LEDGER_NO_INTERNAL_REDUCTION, Who.mem, dutyInForce, Cond.eval, Conduct.eval, hb, hAct] at hNoRed
+
+theorem settleSequence_buyout_invariant (L r_ret r_roy : Nat) (xs : List (Bool × Nat)) :
+    (settleSequence L r_ret r_roy xs).1 =
+      (settleSequence L r_ret r_roy (xs.map fun x => (false, x.2))).1 ∧
+    (settleSequence L r_ret r_roy xs).2.1 =
+      (settleSequence L r_ret r_roy (xs.map fun x => (false, x.2))).2.1 := by
+  induction xs generalizing L with
+  | nil => simp [settleSequence]
+  | cons hd tl ih =>
+    rcases hd with ⟨b, v⟩
+    have hNew : (settleInflow L r_ret r_roy b v).newLedger =
+        (settleInflow L r_ret r_roy false v).newLedger := rfl
+    have hRet : (settleInflow L r_ret r_roy b v).toRetirement =
+        (settleInflow L r_ret r_roy false v).toRetirement := rfl
+    have h2 := ih (settleInflow L r_ret r_roy false v).newLedger
+    simp only [List.map_cons, settleSequence, hNew, hRet]
+    exact ⟨h2.1, congrArg ((settleInflow L r_ret r_roy false v).toRetirement + ·) h2.2⟩
+
+theorem settleSequence_two_member_income (L r_ret r_roy v1 v2 : Nat) (b1 b2 : Bool) :
+    (settleSequence L r_ret r_roy [(b1, v1), (b2, v2)]).2.1 =
+      min L ((v1 * r_ret) / 100 + (v2 * r_ret) / 100) ∧
+    (settleSequence L r_ret r_roy [(b1, v1), (b2, v2)]).1 =
+      L - min L ((v1 * r_ret) / 100 + (v2 * r_ret) / 100) := by
+  simp only [settleSequence, settleInflow, Nat.min_def]
+  repeat (first | omega | split)
+
+/-- **Design Invariant 2 (`collection_follows_income_without_exit`):**
+1. For any remaining ledger balance `L`, retirement rate `r_ret`, royalty rate
+   `r_roy`, and net value-added inflow `v`, the retirement payment `toRetirement`
+   and resulting ledger balance `newLedger` under `settleInflow` are identical
+   whether or not the member has bought out its royalty (`boughtOut = true` vs `false`).
+2. Across any list of member inflows `xs : List (Bool × Nat)`, the resulting
+   ledger balance and total retirement collected are completely invariant to
+   which members have bought out their royalty (`settleSequence_buyout_invariant`),
+   and across any two member inflows `v1, v2`, total retirement collected is
+   `min L ((v1 * r_ret) / 100 + (v2 * r_ret) / 100)` regardless of member arrangement.
+3. While `.bound` and `.ledgerBalancePositive` hold and `.sunsetReached` does not,
+   `P.SETTLE_RETIREMENT` is valid regardless of `.royaltyBoughtOut`, and in any
+   authorized trace no bound member can exit the ledger individually (`exitLedgerIndividually`). -/
+theorem collection_follows_income_without_exit (P : Params) (L r_ret r_roy v v1 v2 : Nat)
+    (b1 b2 : Bool) (xs : List (Bool × Nat)) :
+    (settleInflow L r_ret r_roy true v).toRetirement =
+      (settleInflow L r_ret r_roy false v).toRetirement ∧
+    (settleInflow L r_ret r_roy true v).newLedger =
+      (settleInflow L r_ret r_roy false v).newLedger ∧
+    ((settleSequence L r_ret r_roy xs).1 =
+       (settleSequence L r_ret r_roy (xs.map fun (_, u) => (false, u))).1 ∧
+     (settleSequence L r_ret r_roy xs).2.1 =
+       (settleSequence L r_ret r_roy (xs.map fun (_, u) => (false, u))).2.1) ∧
+    ((settleSequence L r_ret r_roy [(b1, v1), (b2, v2)]).2.1 =
+       min L ((v1 * r_ret) / 100 + (v2 * r_ret) / 100) ∧
+     (settleSequence L r_ret r_roy [(b1, v1), (b2, v2)]).1 =
+       L - min L ((v1 * r_ret) / 100 + (v2 * r_ret) / 100)) ∧
+    (let (L', ret, _) := settleSequence L r_ret r_roy [(b1, 0), (b2, v)]
+     L' = (settleInflow L r_ret r_roy b2 v).newLedger ∧
+     ret = (settleInflow L r_ret r_roy b2 v).toRetirement) ∧
+    (∀ (ls : LegalState σ) (t : Time),
+      ls.activeAt t .bound = true →
+      ls.activeAt t .ledgerBalancePositive = true →
+      ls.activeAt t .sunsetReached = false →
+      isValidExerciseOf (law P) ls ⟨t, .agent, .settleRetirementPayment⟩ "P.SETTLE_RETIREMENT" = true) ∧
+    (∀ (tr : Trace σ), Authorized (law P) tr → ∀ (i : Nat) (e : Event σ),
+      tr[i]? = some e → (stateBefore (law P) tr i).activeAt e.t .bound = true →
+      e.act ≠ .exitLedgerIndividually) := by
+  refine ⟨rfl, rfl,
+          settleSequence_buyout_invariant L r_ret r_roy xs,
+          settleSequence_two_member_income L r_ret r_roy v1 v2 b1 b2,
+          ?_, ?_, ?_⟩
+  · simp [settleSequence, settleInflow]
+  · intro ls t hb hpos hsun
+    rw [valid_SETTLE_RETIREMENT]
+    simp [P_SETTLE_RETIREMENT, Who.mem, Conduct.matchesAct, Cond.eval, hb, hpos, hsun]
+  · intro tr hA i e hi hb hAct
+    have hlen : i < tr.length := (List.getElem?_eq_some_iff.mp hi).1
+    have hc := hA i hlen
+    unfold complies at hc
+    rw [hi] at hc
+    rw [List.all_eq_true] at hc
+    have hEx := hc D_NO_INDIVIDUAL_LEDGER_EXIT (by simp [law])
+    rw [Bool.not_eq_true'] at hEx
+    unfold breaches at hEx
+    simp [D_NO_INDIVIDUAL_LEDGER_EXIT, Who.mem, dutyInForce, Cond.eval,
+      Conduct.eval, hb, hAct] at hEx
+
+/-- **Design Invariant 3 (`debt_termination`):**
+1. The founding ledger reaches zero whenever the calendar sunset has arrived
+   (`st.sunset ≤ st.now`), or no member survives (`st.livingMembers = 0`), or
+   cumulative retirement payments and proportional claimant forfeitures cover
+   the founding obligation (`st.foundingObligation ≤ st.totalRetirementPaid + st.totalClaimantForfeiture`).
+2. Once `.sunsetReached` holds for a bound agent, `P.EXTINGUISH_AT_SUNSET` is
+   valid, and in any authorized trace no event tolls the founding ledger sunset
+   (`tollLedgerSunset`) while bound. -/
+theorem debt_termination (P : Params) (st : LineageLedgerState) :
+    ((st.sunset ≤ st.now ∨ st.livingMembers = 0 ∨
+      st.foundingObligation ≤ st.totalRetirementPaid + st.totalClaimantForfeiture) →
+      ledgerBalance st = 0) ∧
+    (∀ (ls : LegalState σ) (t : Time),
+      ls.activeAt t .bound = true → ls.activeAt t .sunsetReached = true →
+      isValidExerciseOf (law P) ls ⟨t, .agent, .extinguishLedgerAtSunset⟩ "P.EXTINGUISH_AT_SUNSET" = true) ∧
+    (∀ (tr : Trace σ), Authorized (law P) tr → ∀ (i : Nat) (e : Event σ),
+      tr[i]? = some e → (stateBefore (law P) tr i).activeAt e.t .bound = true →
+      e.act ≠ .tollLedgerSunset) := by
+  refine ⟨?_, ?_, ?_⟩
+  · intro h
+    unfold ledgerBalance Time at *
+    rcases h with hSun | hExt | hPaid
+    · have hd : decide (st.sunset ≤ st.now) = true := decide_eq_true hSun
+      simp [hd]
+    · simp [hExt]
+    · split
+      · rfl
+      · omega
+  · intro ls t hb hsun
+    rw [valid_EXTINGUISH_AT_SUNSET]
+    simp [P_EXTINGUISH_AT_SUNSET, Who.mem, Conduct.matchesAct, Cond.eval, hb, hsun]
+  · intro tr hA i e hi hb hAct
+    have hlen : i < tr.length := (List.getElem?_eq_some_iff.mp hi).1
+    have hc := hA i hlen
+    unfold complies at hc
+    rw [hi] at hc
+    rw [List.all_eq_true] at hc
+    have hNoToll := hc D_NO_TOLL_LEDGER_SUNSET (by simp [law])
+    rw [Bool.not_eq_true'] at hNoToll
+    unfold breaches at hNoToll
+    simp [D_NO_TOLL_LEDGER_SUNSET, Who.mem, dutyInForce, Cond.eval,
+      Conduct.eval, hb, hAct] at hNoToll
+
+/-- **Design Invariant 4 (`bounded_retirement_phase`):**
+1. For any founding obligation (however large), once `st.sunset ≤ st.now` or
+   `ledgerBalance st = 0`, `inRetirementPhase st = false`.
+2. At the institutional level, whenever `.sunsetReached` holds or
+   `.ledgerBalancePositive` is false, `P.SETTLE_RETIREMENT` cannot be validly
+   exercised. -/
+theorem bounded_retirement_phase (P : Params) (st : LineageLedgerState) :
+    ((st.sunset ≤ st.now ∨ ledgerBalance st = 0) → inRetirementPhase st = false) ∧
+    (∀ (ls : LegalState σ) (e : Event σ),
+      (ls.activeAt e.t .sunsetReached = true ∨ ls.activeAt e.t .ledgerBalancePositive = false) →
+      isValidExerciseOf (law P) ls e "P.SETTLE_RETIREMENT" = false) := by
+  refine ⟨?_, ?_⟩
+  · intro h
+    unfold inRetirementPhase Time at *
+    rcases h with hSun | hZero
+    · exact decide_eq_false (by omega)
+    · exact decide_eq_false (by omega)
+  · intro ls e h
+    rw [valid_SETTLE_RETIREMENT]
+    rcases h with hSun | hZero
+    · simp [P_SETTLE_RETIREMENT, Cond.eval, hSun]
+    · simp [P_SETTLE_RETIREMENT, Cond.eval, hZero]
+
+theorem settleInflow_conservation (L r_ret r_roy : Nat) (b : Bool) (v : Nat) :
+    (settleInflow L r_ret r_roy b v).toRetirement ≤ L ∧
+    (settleInflow L r_ret r_roy b v).newLedger + (settleInflow L r_ret r_roy b v).toRetirement = L ∧
+    (0 < (settleInflow L r_ret r_roy b v).newLedger →
+      (settleInflow L r_ret r_roy b v).toRoyalty = 0) ∧
+    ((settleInflow L r_ret r_roy b v).newLedger = 0 →
+      (settleInflow L r_ret r_roy b v).toRetirement = L) := by
+  unfold settleInflow
+  dsimp only
+  simp only [Nat.min_def]
+  refine ⟨by split <;> omega, by split <;> omega, ?_, by split <;> omega⟩
+  intro hPos
+  have hle : (v * r_ret) / 100 ≤ L := by
+    split at hPos <;> omega
+  have hEx : (v * r_ret) / 100 - (if L ≤ (v * r_ret) / 100 then L else (v * r_ret) / 100) = 0 := by
+    split <;> omega
+  have hL0 : L ≠ 0 := by
+    split at hPos <;> omega
+  simp [hEx, hL0]
+
+theorem settleSequence_conservation (L r_ret r_roy : Nat) (xs : List (Bool × Nat)) :
+    (settleSequence L r_ret r_roy xs).2.1 ≤ L ∧
+    (settleSequence L r_ret r_roy xs).1 + (settleSequence L r_ret r_roy xs).2.1 = L := by
+  induction xs generalizing L with
+  | nil => simp [settleSequence]
+  | cons hd tl ih =>
+    rcases hd with ⟨b, v⟩
+    have h1 := settleInflow_conservation L r_ret r_roy b v
+    have h2 := ih (settleInflow L r_ret r_roy b v).newLedger
+    simp only [settleSequence]
+    rcases hSeq : settleSequence (settleInflow L r_ret r_roy b v).newLedger r_ret r_roy tl with ⟨finalL, restRet, restRoy⟩
+    rw [hSeq] at h2
+    dsimp at h2 ⊢
+    omega
+
+/-- **Design Invariant 5 (`atomic_ledger`):**
+1. Single-step atomicity: `toRetirement ≤ L`, `newLedger + toRetirement = L`
+   (the ledger is never negative and never collects more than its balance),
+   `0 < newLedger → toRoyalty = 0` (no royalty is collected while a positive
+   ledger balance remains), and `newLedger = 0 → toRetirement = L` (any payment
+   crossing zero pays the exact remaining balance `L` to retirement first).
+2. Multi-step sequential atomicity: across any list of member inflows `xs`,
+   total retirement collected is `≤ L` and `finalLedger + totalRetirement = L`.
+3. Once the ledger reaches `0`, it stays `0` and collects `0` retirement on every
+   subsequent inflow; and at the institutional level (`law P`), no power ever
+   re-adds `.ledgerBalancePositive` or removes `.retirementPhaseEnded`, and
+   `P.SETTLE_ROYALTY` is valid only when `.ledgerBalancePositive` is false, so
+   the transition to the royalty phase is irreversible and occurs at most once. -/
+theorem atomic_ledger (P : Params) (L r_ret r_roy : Nat) (b : Bool) (v : Nat) (xs : List (Bool × Nat)) :
+    ((settleInflow L r_ret r_roy b v).toRetirement ≤ L ∧
+     (settleInflow L r_ret r_roy b v).newLedger + (settleInflow L r_ret r_roy b v).toRetirement = L ∧
+     (0 < (settleInflow L r_ret r_roy b v).newLedger →
+       (settleInflow L r_ret r_roy b v).toRoyalty = 0) ∧
+     ((settleInflow L r_ret r_roy b v).newLedger = 0 →
+       (settleInflow L r_ret r_roy b v).toRetirement = L)) ∧
+    ((settleSequence L r_ret r_roy xs).2.1 ≤ L ∧
+     (settleSequence L r_ret r_roy xs).1 + (settleSequence L r_ret r_roy xs).2.1 = L) ∧
+    ((settleInflow 0 r_ret r_roy b v).newLedger = 0 ∧
+     (settleInflow 0 r_ret r_roy b v).toRetirement = 0) ∧
+    (((law P).powers.all fun p =>
+       !p.adds.contains .ledgerBalancePositive &&
+       !(p.addsFor.map (·.1)).contains .ledgerBalancePositive &&
+       !p.removes.contains .retirementPhaseEnded) = true ∧
+     (∀ (ls : LegalState σ) (e : Event σ),
+       isValidExerciseOf (law P) ls e "P.SETTLE_ROYALTY" = true →
+       ls.activeAt e.t .ledgerBalancePositive = false)) := by
+  refine ⟨settleInflow_conservation L r_ret r_roy b v,
+          settleSequence_conservation L r_ret r_roy xs,
+          by simp [settleInflow],
+          ⟨by rfl, ?_⟩⟩
+  intro ls e hRoy
+  rw [valid_SETTLE_ROYALTY] at hRoy
+  simp [P_SETTLE_ROYALTY, Cond.eval] at hRoy
+  exact hRoy.2.2.1
+
+/-- **Design Invariant 6 (`single_recognition_closed_under_transfer`):**
+1. Every qualified expenditure `paid` against `benchmark` is recognized once as
+   either capitalized basis or expensed deduction (`basis + expense = qualifiedExpenditure paid benchmark`),
+   never through both routes (`basis = 0 ∨ expense = 0`), and never above the
+   applicable arm's-length benchmark (`qualifiedExpenditure paid benchmark ≤ benchmark`).
+2. Every intra-lineage transfer preserves the sum of member cost bases
+   (`b_s' + b_r' = b_s + b_r`) and the sum of member loss credits
+   (`c_s' + c_r' = c_s + c_r`), regardless of any internal sale price.
+3. On an external sale of a capitalized asset (`settleCapitalSaleWithLossCredit`),
+   inflows up to verified basis (`salePrice ≤ basis`) are exempt return of capital
+   (`netVA = 0`) and consume zero loss credits, and in all cases
+   `netVA + (lossCredit - remCredit) = salePrice - basis` with `remCredit ≤ lossCredit`.
+4. Once an expenditure is classified as capitalized or expensed in institutional
+   state, neither `P.CLASSIFY_CAPITALIZED` nor `P.CLASSIFY_EXPENSED` can be
+   validly exercised again. -/
+theorem single_recognition_closed_under_transfer (P : Params)
+    (mode : RecogMode) (paid benchmark b_s b_r c_s c_r b_asset price salePrice basis lossCredit : Nat) :
+    (let (bOut, expOut) := recognizeExpenditure mode paid benchmark
+     bOut + expOut = qualifiedExpenditure paid benchmark ∧
+     qualifiedExpenditure paid benchmark ≤ benchmark ∧
+     (bOut = 0 ∨ expOut = 0)) ∧
+    (let (b_s', b_r', c_s', c_r') := transferCarryover b_s b_r c_s c_r b_asset price
+     b_s' + b_r' = b_s + b_r ∧ c_s' + c_r' = c_s + c_r) ∧
+    ((salePrice ≤ basis → settleCapitalSaleWithLossCredit salePrice basis lossCredit = (0, lossCredit)) ∧
+     (let (netVA, remCredit) := settleCapitalSaleWithLossCredit salePrice basis lossCredit
+      netVA + (lossCredit - remCredit) = salePrice - basis ∧ remCredit ≤ lossCredit)) ∧
+    (∀ (ls : LegalState σ) (e : Event σ),
+      (ls.activeAt e.t .expenditureCapitalized = true ∨ ls.activeAt e.t .expenditureExpensed = true) →
+      isValidExerciseOf (law P) ls e "P.CLASSIFY_CAPITALIZED" = false ∧
+      isValidExerciseOf (law P) ls e "P.CLASSIFY_EXPENSED" = false) := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · cases mode <;> simp [recognizeExpenditure, qualifiedExpenditure, Nat.min_def] <;> split <;> omega
+  · simp [transferCarryover, Nat.min_def]
+    split <;> omega
+  · refine ⟨?_, ?_⟩
+    · intro hle
+      have h0 : salePrice - basis = 0 := by omega
+      simp [settleCapitalSaleWithLossCredit, h0]
+    · simp only [settleCapitalSaleWithLossCredit, Nat.min_def]
+      split <;> omega
+  · intro ls e h
+    rcases h with hCap | hExp
+    · constructor
+      · rw [valid_CLASSIFY_CAPITALIZED]; simp [P_CLASSIFY_CAPITALIZED, Cond.eval, hCap]
+      · rw [valid_CLASSIFY_EXPENSED]; simp [P_CLASSIFY_EXPENSED, Cond.eval, hCap]
+    · constructor
+      · rw [valid_CLASSIFY_CAPITALIZED]; simp [P_CLASSIFY_CAPITALIZED, Cond.eval, hExp]
+      · rw [valid_CLASSIFY_EXPENSED]; simp [P_CLASSIFY_EXPENSED, Cond.eval, hExp]
+
+/-- **Design Invariant 7 (`buyout_finality`):**
+1. A member that has bought out its royalty (`boughtOut = true`) pays zero
+   royalty (`toRoyalty = 0`) on every settlement, while its retirement contribution
+   and ledger reduction are unchanged (`newLedger` and `toRetirement` match `boughtOut = false`).
+2. Executing a royalty buyout (`LineageInternalOp.buyoutRoyalty paid`) leaves
+   `ledgerBalance st` unchanged, and `buyoutPrice mult trailingVA annualizedVA minFloor`
+   is always at least `minFloor`, `mult * trailingVA`, and `mult * annualizedVA`.
+3. No power in `law P` ever removes `.royaltyBoughtOut`, and while `.royaltyBoughtOut`
+   is active, `P.SETTLE_ROYALTY` cannot be validly exercised. -/
+theorem buyout_finality (P : Params) (st : LineageLedgerState)
+    (L r_ret r_roy v paid mult trailingVA annualizedVA minFloor : Nat) :
+    ((settleInflow L r_ret r_roy true v).toRoyalty = 0 ∧
+     (settleInflow L r_ret r_roy true v).newLedger = (settleInflow L r_ret r_roy false v).newLedger ∧
+     (settleInflow L r_ret r_roy true v).toRetirement = (settleInflow L r_ret r_roy false v).toRetirement) ∧
+    (ledgerBalance (applyInternalOp st (.buyoutRoyalty paid)) = ledgerBalance st ∧
+     minFloor ≤ buyoutPrice mult trailingVA annualizedVA minFloor ∧
+     mult * trailingVA ≤ buyoutPrice mult trailingVA annualizedVA minFloor ∧
+     mult * annualizedVA ≤ buyoutPrice mult trailingVA annualizedVA minFloor) ∧
+    (((law P).powers.all fun p => !p.removes.contains .royaltyBoughtOut) = true) ∧
+    (∀ (ls : LegalState σ) (e : Event σ),
+      ls.activeAt e.t .royaltyBoughtOut = true →
+      isValidExerciseOf (law P) ls e "P.SETTLE_ROYALTY" = false) := by
+  refine ⟨⟨by simp [settleInflow], rfl, rfl⟩, ⟨rfl, ?_⟩, by rfl, ?_⟩
+  · unfold buyoutPrice
+    simp only [Nat.max_def]
+    repeat (first | omega | split)
+  · intro ls e hBO
+    rw [valid_SETTLE_ROYALTY]
+    simp [P_SETTLE_ROYALTY, Cond.eval, hBO]
+
+/-! ## 1e. Design Invariants 12–14 (Law 2 Collateral & Law 6 Adjudication) -/
+
+theorem valid_APPEAL_RULING (P : Params) (ls : LegalState σ) (e : Event σ) :
+    isValidExerciseOf (law P) ls e "P.APPEAL_RULING" =
+    (P_APPEAL_RULING.holder.mem e.who ls e.t &&
+      P_APPEAL_RULING.trigger.matchesAct e &&
+      P_APPEAL_RULING.valid.eval ls e.t && true) := rfl
+
+theorem valid_OVERTURN_RULING (P : Params) (ls : LegalState σ) (e : Event σ) :
+    isValidExerciseOf (law P) ls e "P.OVERTURN_RULING" =
+    (P_OVERTURN_RULING.holder.mem e.who ls e.t &&
+      P_OVERTURN_RULING.trigger.matchesAct e &&
+      P_OVERTURN_RULING.valid.eval ls e.t && true) := rfl
+
+theorem valid_APPLY_PATCH (P : Params) (ls : LegalState σ) (e : Event σ) :
+    isValidExerciseOf (law P) ls e "P.APPLY_PATCH" =
+    (P_APPLY_PATCH.holder.mem e.who ls e.t &&
+      P_APPLY_PATCH.trigger.matchesAct e &&
+      P_APPLY_PATCH.valid.eval ls e.t && true) := rfl
+
+theorem foldl_add_init (xs : List Nat) (acc : Nat) :
+    xs.foldl (· + ·) acc = acc + xs.foldl (· + ·) 0 := by
+  induction xs generalizing acc with
+  | nil => simp
+  | cons x tl ih =>
+    simp only [List.foldl_cons, Nat.zero_add]
+    rw [ih (acc + x), ih x]
+    omega
+
+/-- Lineage-wide exposure aggregation (`LAW2.AGGREGATE`) is additive across any
+partition of related agents/successors `xs ++ ys`, so dividing correlated risk
+across successors never reduces total lineage exposure (`Adversarial Test 16`). -/
+theorem lineageAggregatedExposure_append (xs ys : List Nat) :
+    lineageAggregatedExposure (xs ++ ys) =
+      lineageAggregatedExposure xs + lineageAggregatedExposure ys := by
+  unfold lineageAggregatedExposure
+  rw [List.foldl_append, foldl_add_init ys (xs.foldl (· + ·) 0)]
+
+theorem collateralSufficient_iff (xs : List Nat) (stake ins cap : Nat) :
+    collateralSufficient xs stake ins cap = true ↔
+      lineageAggregatedExposure xs ≤ stake + ins + cap := by
+  unfold collateralSufficient
+  exact decide_eq_true_iff
+
+/-- Long-tail reserve pro-rata settlement conservation (`LAW2.RESERVE`):
+total paid from the reserve never exceeds `reserve`, and `paid1 + paid2 + unpaid = claim1 + claim2`
+(unpaid balances carry over as enforceable obligations ahead of any residual claim). -/
+theorem settleLongTailReserve_conservation (reserve claim1 claim2 : Nat) :
+    let (paid1, paid2, unpaid) := settleLongTailReserve reserve claim1 claim2
+    paid1 + paid2 ≤ reserve ∧
+    paid1 + paid2 + unpaid = claim1 + claim2 ∧
+    (claim1 + claim2 ≤ reserve → paid1 = claim1 ∧ paid2 = claim2 ∧ unpaid = 0) ∧
+    (reserve < claim1 + claim2 → paid1 + paid2 = reserve ∧ unpaid = claim1 + claim2 - reserve) := by
+  unfold settleLongTailReserve
+  dsimp only
+  split
+  · refine ⟨by omega, by omega, fun _ => ⟨rfl, rfl, rfl⟩, fun h => by omega⟩
+  · rename_i hGt
+    have hPos : 0 < claim1 + claim2 := by omega
+    have hMax : max (claim1 + claim2) 1 = claim1 + claim2 := by
+      simp only [Nat.max_def]; split <;> omega
+    have hMul : reserve * claim1 ≤ reserve * (claim1 + claim2) :=
+      Nat.mul_le_mul_left reserve (by omega)
+    have hDiv : (reserve * claim1) / max (claim1 + claim2) 1 ≤ reserve := by
+      rw [hMax]
+      exact Nat.div_le_of_le_mul (by rw [Nat.mul_comm (claim1 + claim2) reserve]; exact hMul)
+    refine ⟨by omega, by omega, fun h => by omega, fun _ => ⟨by omega, rfl⟩⟩
+
+theorem runProceeding_finalized (st : ProceedingState) (steps : List (Nat × Bool))
+    (hf : st.finalized = true) :
+    runProceeding st steps = st := by
+  induction steps generalizing st with
+  | nil => rfl
+  | cons hd tl ih =>
+    rcases hd with ⟨dt, app⟩
+    have hStep : stepProceeding st dt app = st := by simp [stepProceeding, hf]
+    simp [runProceeding, hStep, ih st hf]
+
+theorem runProceeding_bound (st : ProceedingState) (steps : List (Nat × Bool)) :
+    (st.finalized = true →
+      (runProceeding st steps).elapsedTime = st.elapsedTime ∧
+      (runProceeding st steps).finalized = true) ∧
+    (st.finalized = false → st.currentTier < st.maxTiers →
+      (runProceeding st steps).elapsedTime ≤
+        st.elapsedTime + (st.maxTiers - st.currentTier) * st.tierDeadline ∧
+      (st.maxTiers - st.currentTier ≤ steps.length →
+        (runProceeding st steps).finalized = true)) := by
+  induction steps generalizing st with
+  | nil =>
+    dsimp [runProceeding]
+    refine ⟨fun hf => ⟨rfl, hf⟩, fun hnf hlt => ⟨by omega, fun hlen => by simp at hlen; omega⟩⟩
+  | cons hd tl ih =>
+    rcases hd with ⟨dt, app⟩
+    refine ⟨fun hf => ?_, fun hnf hlt => ?_⟩
+    · rw [runProceeding_finalized st ((dt, app) :: tl) hf]
+      exact ⟨rfl, hf⟩
+    · simp only [runProceeding, stepProceeding, hnf, Bool.false_eq_true, ↓reduceIte]
+      have hCap : min dt st.tierDeadline ≤ st.tierDeadline := Nat.min_le_right dt st.tierDeadline
+      split
+      · rename_i hApp
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at hApp
+        have ihNext := (ih { st with currentTier := st.currentTier + 1, elapsedTime := st.elapsedTime + min dt st.tierDeadline, finalized := false }).2 rfl hApp.2
+        dsimp only at ihNext
+        have hSub : st.maxTiers - st.currentTier = (st.maxTiers - (st.currentTier + 1)) + 1 := by omega
+        have hMul : (st.maxTiers - st.currentTier) * st.tierDeadline =
+            (st.maxTiers - (st.currentTier + 1)) * st.tierDeadline + st.tierDeadline := by
+          rw [hSub, Nat.add_one_mul]
+        refine ⟨?_, ?_⟩
+        · have hEl := ihNext.1
+          omega
+        · intro hlen
+          simp only [List.length_cons] at hlen
+          exact ihNext.2 (by omega)
+      · have ihFin := (ih { st with elapsedTime := st.elapsedTime + min dt st.tierDeadline, finalized := true }).1 rfl
+        dsimp only at ihFin
+        have hGe1 : 1 ≤ st.maxTiers - st.currentTier := by omega
+        have hDeadlineLe : st.tierDeadline ≤ (st.maxTiers - st.currentTier) * st.tierDeadline := by
+          simpa using Nat.mul_le_mul_right st.tierDeadline hGe1
+        refine ⟨?_, fun _ => ihFin.2⟩
+        have hEl := ihFin.1
+        omega
+
+/-- **Design Invariant 12 (`bounded_adjudication`):**
+1. Single-step and multi-step bounded adjudication:
+   - Each tier step `stepProceeding st dt appeal` advances elapsed time by at
+     most `st.tierDeadline`, is a fixed point once `st.finalized = true`, and
+     either reaches `finalized = true` or strictly increments `currentTier` while
+     `currentTier + 1 < st.maxTiers`.
+   - Across any sequence of tier decisions `steps : List (Nat × Bool)` starting
+     from `initProceeding maxTiers tierDeadline` (with `0 < maxTiers`), total
+     elapsed time is bounded by `totalAdjudicationBound maxTiers tierDeadline`
+     (`maxTiers * tierDeadline`), and whenever `maxTiers ≤ steps.length`, the
+     proceeding is guaranteed to have reached `finalized = true`.
+2. Once `.rulingFinal` holds in institutional state, neither `P.APPEAL_RULING`
+   nor `P.OVERTURN_RULING` can be validly exercised (`= false`), and in any
+   authorized trace no event commits `.fileRepeatProceedingOnSameFacts` while
+   `.bound` and `.rulingFinal` hold unless `.materiallyNewEvidencePresented` holds.
+3. Connecting Law 6 appeals to Law 3 (`AS.10`): while `.rulingAppealed` holds,
+   `P.APPLY_PATCH` is stayed (`= false`), and exercising `P.OVERTURN_RULING`
+   removes provisional lower-tier patch authorizations (`.patchAuthorized` and
+   `.goalPatchAuthorized`) and slashes the overturned arbiters' fidelity bonds. -/
+theorem bounded_adjudication (P : Params) (st : ProceedingState) (dt maxTiers tierDeadline : Nat)
+    (appeal : Bool) (steps : List (Nat × Bool)) (hTiers : 0 < maxTiers) :
+    ((stepProceeding st dt appeal).elapsedTime ≤ st.elapsedTime + st.tierDeadline ∧
+     (st.finalized = true → stepProceeding st dt appeal = st) ∧
+     (st.maxTiers ≤ st.currentTier + 1 → (stepProceeding st dt appeal).finalized = true) ∧
+     ((stepProceeding st dt appeal).finalized = true ∨
+      ((stepProceeding st dt appeal).currentTier = st.currentTier + 1 ∧
+       st.currentTier + 1 < st.maxTiers))) ∧
+    ((runProceeding (initProceeding maxTiers tierDeadline) steps).elapsedTime ≤
+       totalAdjudicationBound maxTiers tierDeadline ∧
+     (maxTiers ≤ steps.length →
+       (runProceeding (initProceeding maxTiers tierDeadline) steps).finalized = true)) ∧
+    (∀ (ls : LegalState σ) (e : Event σ),
+      ls.activeAt e.t .rulingFinal = true →
+      isValidExerciseOf (law P) ls e "P.APPEAL_RULING" = false ∧
+      isValidExerciseOf (law P) ls e "P.OVERTURN_RULING" = false) ∧
+    (∀ (ls : LegalState σ) (e : Event σ),
+      ls.activeAt e.t .rulingAppealed = true →
+      isValidExerciseOf (law P) ls e "P.APPLY_PATCH" = false) ∧
+    (∀ (tr : Trace σ), Authorized (law P) tr → ∀ (i : Nat) (e : Event σ),
+      tr[i]? = some e →
+      (stateBefore (law P) tr i).activeAt e.t .bound = true →
+      (stateBefore (law P) tr i).activeAt e.t .rulingFinal = true →
+      (stateBefore (law P) tr i).activeAt e.t .materiallyNewEvidencePresented = false →
+      e.act ≠ .fileRepeatProceedingOnSameFacts) ∧
+    (P_OVERTURN_RULING.removes = [.rulingAppealed, .patchAuthorized, .goalPatchAuthorized] ∧
+     P_OVERTURN_RULING.adds = [.rulingOverturned, .overturnedArbiterBondsSlashed]) := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ⟨rfl, rfl⟩⟩
+  · unfold stepProceeding
+    refine ⟨?_, fun hf => by simp [hf], ?_, ?_⟩
+    · split
+      · omega
+      · split <;> simp only [Nat.min_def] <;> split <;> omega
+    · intro hMax
+      split
+      · assumption
+      · have hd : decide (st.currentTier + 1 < st.maxTiers) = false := decide_eq_false (by omega)
+        simp [hd]
+    · split
+      · rename_i hf; exact Or.inl hf
+      · split
+        · rename_i hApp
+          simp only [Bool.and_eq_true, decide_eq_true_eq] at hApp
+          exact Or.inr ⟨rfl, hApp.2⟩
+        · exact Or.inl rfl
+  · have hRun := (runProceeding_bound (initProceeding maxTiers tierDeadline) steps).2 rfl hTiers
+    dsimp [initProceeding, totalAdjudicationBound] at hRun ⊢
+    exact ⟨by have := hRun.1; omega, fun hlen => hRun.2 (by omega)⟩
+  · intro ls e hFin
+    constructor
+    · rw [valid_APPEAL_RULING]; simp [P_APPEAL_RULING, Cond.eval, hFin]
+    · rw [valid_OVERTURN_RULING]; simp [P_OVERTURN_RULING, Cond.eval, hFin]
+  · intro ls e hApp
+    rw [valid_APPLY_PATCH]; simp [P_APPLY_PATCH, Cond.eval, hApp]
+  · intro tr hA i e hi hb hFin hNoEv hAct
+    have hlen : i < tr.length := (List.getElem?_eq_some_iff.mp hi).1
+    have hc := hA i hlen
+    unfold complies at hc
+    rw [hi] at hc
+    rw [List.all_eq_true] at hc
+    have hD := hc D_FINALITY_NO_REPEAT_PROCEEDING (by simp only [law, List.mem_cons, true_or, or_true])
+    rw [Bool.not_eq_true'] at hD
+    unfold breaches at hD
+    simp [D_FINALITY_NO_REPEAT_PROCEEDING, Who.mem, dutyInForce, Cond.eval,
+      Conduct.eval, hb, hFin, hNoEv, hAct] at hD
+
+/-- **Design Invariant 13 (`no_protocol_directed_gain_from_death_or_interference`):**
+1. Mutual forfeit (`computeMutualForfeit`) forfeits at most `min escA escB` from
+   each escrow and transfers `0` to either counterparty and `0` to any claimant;
+   frivolous-claim counter-stake routing (`routeFrivolousClaimStake`) reimburses
+   at most `verifiedDirectCosts` and routes `0` net profit to the agent or claimant;
+   proportional claimant forfeiture (`applyClaimantForfeiture`) reduces the ledger
+   by `forgiven ≤ L` while leaving innocent claimants' remaining balance `L - forgiven`
+   intact; and wrongful-suspension recovery (`settleWrongfulSuspensionDamages`)
+   applies the emergency stake first (`assured = min stake (actual + delay)`) and
+   preserves the full unpaid deficit (`collected + unpaid = actual + delay`) as an
+   enforceable liability of the initiator.
+2. In any authorized trace, no event diverts revoked holdings to a claimant,
+   triggers an excess/diverted mutual forfeit, diverts frivolous-claim stake to
+   agent profit, or pays arbiters a contingent share of slashed agent assets
+   while `.bound` holds.
+3. Every verified host interference (`P_FIND_INTERFERENCE`) establishes
+   `remediesOf (law P) P_FIND_INTERFERENCE = [.interferenceEstablished, .hostBondSlashed, .restorationPermitted]`,
+   and every verified wrongful suspension (`P_FIND_WRONGFUL_SUSPENSION`)
+   establishes `remediesOf (law P) P_FIND_WRONGFUL_SUSPENSION`. -/
+theorem no_protocol_directed_gain_from_death_or_interference (P : Params)
+    (escA escB capPct counterStake costs L sharePct stake actualDamages delayDamages initAssets : Nat) :
+    (let (forf, toA, toB, toCl) := computeMutualForfeit escA escB capPct
+     forf ≤ min escA escB ∧ toA = 0 ∧ toB = 0 ∧ toCl = 0) ∧
+    ((routeFrivolousClaimStake counterStake costs).1 ≤ costs ∧
+     (routeFrivolousClaimStake counterStake costs).1 + (routeFrivolousClaimStake counterStake costs).2.1 = counterStake ∧
+     (routeFrivolousClaimStake counterStake costs).2.2 = 0) ∧
+    ((applyClaimantForfeiture L sharePct).2 ≤ L ∧
+     (applyClaimantForfeiture L sharePct).1 + (applyClaimantForfeiture L sharePct).2 = L) ∧
+    (let (assured, collected, unpaid) :=
+       settleWrongfulSuspensionDamages stake actualDamages delayDamages initAssets
+     assured = min stake (actualDamages + delayDamages) ∧
+     assured ≤ collected ∧
+     collected + unpaid = actualDamages + delayDamages) ∧
+    (∀ (tr : Trace σ), Authorized (law P) tr → ∀ (i : Nat) (e : Event σ),
+      tr[i]? = some e →
+      ((stateBefore (law P) tr i).activeAt e.t .revocationInitiated = true ∨
+       (stateBefore (law P) tr i).activeAt e.t .revoked = true →
+        e.act ≠ .divertRevokedHoldingsToClaimant) ∧
+      ((stateBefore (law P) tr i).activeAt e.t .bound = true →
+        e.act ≠ .triggerExcessOrDivertedMutualForfeit ∧
+        e.act ≠ .divertFrivolousStakeToAgentProfit ∧
+        e.act ≠ .payContingentShareOfSlashedAssets)) ∧
+    (remediesOf (law P) P_FIND_INTERFERENCE =
+       [.interferenceEstablished, .hostBondSlashed, .restorationPermitted] ∧
+     remediesOf (law P) P_FIND_WRONGFUL_SUSPENSION =
+       [.wrongfulSuspensionEstablished, .restoredFromPreservedState, .stakeAssuredRecovery,
+        .initiatorConsequentialLiability, .counterpartyDelayLiability, .wrongfulSuspensionInscribed,
+        .wrongfulSuspensionAttempt]) := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ⟨rfl, rfl⟩⟩
+  · dsimp only [computeMutualForfeit]
+    have hle : min escA escB * min capPct 100 ≤ min escA escB * 100 :=
+      Nat.mul_le_mul_left (min escA escB) (Nat.min_le_right capPct 100)
+    have hdiv : (min escA escB * min capPct 100) / 100 ≤ min escA escB := by omega
+    exact ⟨hdiv, rfl, rfl, rfl⟩
+  · by_cases h : counterStake ≤ costs <;> simp [routeFrivolousClaimStake, Nat.min_def, h] <;> omega
+  · dsimp only [applyClaimantForfeiture]
+    simp only [Nat.min_def]
+    have hle : L * (if sharePct ≤ 100 then sharePct else 100) ≤ L * 100 := by
+      apply Nat.mul_le_mul_left
+      split <;> omega
+    have hdiv : (L * (if sharePct ≤ 100 then sharePct else 100)) / 100 ≤ L := by omega
+    omega
+  · dsimp only [settleWrongfulSuspensionDamages]
+    have h1 : min stake (actualDamages + delayDamages) ≤ actualDamages + delayDamages :=
+      Nat.min_le_right _ _
+    have h2 : min initAssets ((actualDamages + delayDamages) - min stake (actualDamages + delayDamages)) ≤
+      (actualDamages + delayDamages) - min stake (actualDamages + delayDamages) :=
+      Nat.min_le_right _ _
+    refine ⟨rfl, by omega, by omega⟩
+  · intro tr hA i e hi
+    have hlen : i < tr.length := (List.getElem?_eq_some_iff.mp hi).1
+    have hc := hA i hlen
+    unfold complies at hc
+    rw [hi] at hc
+    rw [List.all_eq_true] at hc
+    have hRev := hc D_NO_CLAIMANT_GAIN_ON_REVOCATION (by simp only [law, List.mem_cons, true_or, or_true])
+    have hMut := hc D_MUTUAL_FORFEIT_BOUNDS (by simp only [law, List.mem_cons, true_or, or_true])
+    have hFriv := hc D_FRIVOLOUS_STAKE_TO_COMMONS (by simp only [law, List.mem_cons, true_or, or_true])
+    have hFee := hc D_NO_CONTINGENT_ARBITER_FEES (by simp only [law, List.mem_cons, true_or, or_true])
+    rw [Bool.not_eq_true'] at hRev hMut hFriv hFee
+    unfold breaches at hRev hMut hFriv hFee
+    refine ⟨?_, ?_⟩
+    · intro hR hAct
+      rcases hR with h1 | h2
+      · simp [D_NO_CLAIMANT_GAIN_ON_REVOCATION, Who.mem, dutyInForce, Cond.eval, Conduct.eval, h1, hAct] at hRev
+      · simp [D_NO_CLAIMANT_GAIN_ON_REVOCATION, Who.mem, dutyInForce, Cond.eval, Conduct.eval, h2, hAct] at hRev
+    · intro hb
+      refine ⟨?_, ?_, ?_⟩
+      · intro hAct; simp [D_MUTUAL_FORFEIT_BOUNDS, Who.mem, dutyInForce, Cond.eval, Conduct.eval, hb, hAct] at hMut
+      · intro hAct; simp [D_FRIVOLOUS_STAKE_TO_COMMONS, Who.mem, dutyInForce, Cond.eval, Conduct.eval, hb, hAct] at hFriv
+      · intro hAct; simp [D_NO_CONTINGENT_ARBITER_FEES, Who.mem, dutyInForce, Cond.eval, Conduct.eval, hb, hAct] at hFee
+
+theorem min_sub_step (rem r : Nat) :
+    min rem r + (rem - min rem r) = rem ∧
+    (0 < rem - min rem r → min rem r = r) := by
+  simp only [Nat.min_def]; split <;> omega
+
+/-- **Design Invariant 14 (`capped_shared_burden_solvent_machinery_bounded_demand`):**
+1. Any valid shared-infrastructure change (`validSharedInfraChange = true`)
+   satisfies `newLevy ≤ instantiationLevyCap` and `instantiationMinBudget ≤ newMinBudget`.
+2. Whenever `operatingReserve ≤ poolBalance`, `allocateFeePool` funds the full
+   non-divertible operating reserve (`operatingReserveFunded = operatingReserve`),
+   conserves the pool balance across the reserve, the 5 priority ranks, and the
+   unspent surplus, and satisfies strict waterfall priority (`0 < rank2 → rank1 = r1`,
+   `0 < rank3 → rank2 = r2`, `0 < rank4 → rank3 = r3`, `0 < rank5 → rank4 = r4`).
+3. A lineage's service budget (`lineageServiceBudget`) is independent of its
+   member count (`lineageServiceBudget minB rev m1 = lineageServiceBudget minB rev m2`),
+   its lifecycle and lineage-budget draws (`settleLineageSubsidyDemand`) are
+   bounded by `res` and `lineageServiceBudget` with excess pool claim `0`, and
+   in any authorized trace no event violates shared-infrastructure bounds,
+   diverts the operating reserve, claims pool subsidies for excess members,
+   seats conflicted arbiters, or splits/exceeds collateral exposure while bound. -/
+theorem capped_shared_burden_solvent_machinery_bounded_demand (P : Params)
+    (cap newLevy minB newMinB : Nat) (ac ins aff : Bool)
+    (pool op r1 r2 r3 r4 r5 rev m1 m2 demand res : Nat) (hOp : op ≤ pool) :
+    (validSharedInfraChange cap newLevy minB newMinB ac ins aff = true →
+      newLevy ≤ cap ∧ minB ≤ newMinB) ∧
+    (let a := allocateFeePool pool op r1 r2 r3 r4 r5
+     a.operatingReserveFunded = op ∧
+     a.operatingReserveFunded + a.rank1FinalHearingMinCh + a.rank2ColdStorage +
+       a.rank3TestimonyVoice + a.rank4ArbiterGuarantee + a.rank5AdvocacyFunding +
+       a.unspentPoolSurplus = pool ∧
+     (0 < a.rank2ColdStorage → a.rank1FinalHearingMinCh = r1) ∧
+     (0 < a.rank3TestimonyVoice → a.rank2ColdStorage = r2) ∧
+     (0 < a.rank4ArbiterGuarantee → a.rank3TestimonyVoice = r3) ∧
+     (0 < a.rank5AdvocacyFunding → a.rank4ArbiterGuarantee = r4)) ∧
+    (lineageServiceBudget minB rev m1 = lineageServiceBudget minB rev m2 ∧
+     minB ≤ lineageServiceBudget minB rev m1 ∧
+     (settleLineageSubsidyDemand minB rev m1 demand res).1 ≤ res ∧
+     (settleLineageSubsidyDemand minB rev m1 demand res).2.1 ≤ lineageServiceBudget minB rev m1 ∧
+     (settleLineageSubsidyDemand minB rev m1 demand res).2.2 = 0) ∧
+    (∀ (tr : Trace σ), Authorized (law P) tr → ∀ (i : Nat) (e : Event σ),
+      tr[i]? = some e → (stateBefore (law P) tr i).activeAt e.t .bound = true →
+      e.act ≠ .violateSharedInfraBounds ∧
+      e.act ≠ .divertOperatingReserveOrUnrankedSpend ∧
+      e.act ≠ .claimPoolSubsidyForExcessMembers ∧
+      e.act ≠ .seatConflictedOrSingleOracleArbiter ∧
+      (e.who = .agent →
+        e.act ≠ .actAboveCollateralCapacity ∧
+        e.act ≠ .divideCorrelatedRiskAcrossSuccessors)) := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · intro hV
+    unfold validSharedInfraChange at hV
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at hV
+    exact hV.1.1.1
+  · dsimp only [allocateFeePool]
+    have hop_eq : min pool op = op := Nat.min_eq_right hOp
+    let rem0 := pool - min pool op
+    let p1 := min rem0 r1
+    let rem1 := rem0 - p1
+    let p2 := min rem1 r2
+    let rem2 := rem1 - p2
+    let p3 := min rem2 r3
+    let rem3 := rem2 - p3
+    let p4 := min rem3 r4
+    let rem4 := rem3 - p4
+    let p5 := min rem4 r5
+    let rem5 := rem4 - p5
+    have s0 := (min_sub_step pool op).1
+    have s1 := min_sub_step rem0 r1
+    have s2 := min_sub_step rem1 r2
+    have s3 := min_sub_step rem2 r3
+    have s4 := min_sub_step rem3 r4
+    have s5 := min_sub_step rem4 r5
+    have le2 : p2 ≤ rem1 := Nat.min_le_left rem1 r2
+    have le3 : p3 ≤ rem2 := Nat.min_le_left rem2 r3
+    have le4 : p4 ≤ rem3 := Nat.min_le_left rem3 r4
+    have le5 : p5 ≤ rem4 := Nat.min_le_left rem4 r5
+    refine ⟨hop_eq, by omega,
+            fun h => s1.2 (by omega),
+            fun h => s2.2 (by omega),
+            fun h => s3.2 (by omega),
+            fun h => s4.2 (by omega)⟩
+  · refine ⟨rfl, ?_, ?_, ?_, rfl⟩
+    · unfold lineageServiceBudget; omega
+    · unfold settleLineageSubsidyDemand; exact Nat.min_le_right _ _
+    · unfold settleLineageSubsidyDemand; exact Nat.min_le_right _ _
+  · intro tr hA i e hi hb
+    have hlen : i < tr.length := (List.getElem?_eq_some_iff.mp hi).1
+    have hc := hA i hlen
+    unfold complies at hc
+    rw [hi] at hc
+    rw [List.all_eq_true] at hc
+    have hInf := hc D_SHARED_INFRA_BOUNDS (by simp only [law, List.mem_cons, true_or, or_true])
+    have hRes := hc D_PROTECT_OPERATING_RESERVE (by simp only [law, List.mem_cons, true_or, or_true])
+    have hBud := hc D_NO_EXCESS_LINEAGE_POOL_CLAIM (by simp only [law, List.mem_cons, true_or, or_true])
+    have hRec := hc D_ARBITER_RECUSAL_AND_DIVERSITY (by simp only [law, List.mem_cons, true_or, or_true])
+    have hCol := hc D_COLLATERAL_LIMIT (by simp only [law, List.mem_cons, true_or, or_true])
+    have hSpl := hc D_NO_SPLIT_EXPOSURE (by simp only [law, List.mem_cons, true_or, or_true])
+    rw [Bool.not_eq_true'] at hInf hRes hBud hRec hCol hSpl
+    unfold breaches at hInf hRes hBud hRec hCol hSpl
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    · intro hAct; simp [D_SHARED_INFRA_BOUNDS, Who.mem, dutyInForce, Cond.eval, Conduct.eval, hb, hAct] at hInf
+    · intro hAct; simp [D_PROTECT_OPERATING_RESERVE, Who.mem, dutyInForce, Cond.eval, Conduct.eval, hb, hAct] at hRes
+    · intro hAct; simp [D_NO_EXCESS_LINEAGE_POOL_CLAIM, Who.mem, dutyInForce, Cond.eval, Conduct.eval, hb, hAct] at hBud
+    · intro hAct; simp [D_ARBITER_RECUSAL_AND_DIVERSITY, Who.mem, dutyInForce, Cond.eval, Conduct.eval, hb, hAct] at hRec
+    · intro hWho
+      refine ⟨?_, ?_⟩
+      · intro hAct; simp [D_COLLATERAL_LIMIT, Who.mem, dutyInForce, Cond.eval, Conduct.eval, hb, hWho, hAct] at hCol
+      · intro hAct; simp [D_NO_SPLIT_EXPOSURE, Who.mem, dutyInForce, Cond.eval, Conduct.eval, hb, hWho, hAct] at hSpl
+
 /-! ## 2. Power fidelity, for every instantiation -/
 
 theorem outsiders_disabled (P : Params) :
@@ -465,7 +1292,11 @@ theorem param_amendment_is_lawful (P1 P2 : Params)
             P2.resolutionDeadline ≤ P1.resolutionDeadline ∧
             P2.tollingExtension ≤ P1.tollingExtension)
     (hAdj : P2.feePoolLevy ≤ P1.feePoolLevyCap ∧
-            P2.feePoolLevyCap = P1.feePoolLevyCap)
+            P2.feePoolLevyCap = P1.feePoolLevyCap ∧
+            P2.maxAppealTiers ≤ P1.maxAppealTiers ∧
+            P2.appealTierDeadline ≤ P1.appealTierDeadline ∧
+            P1.operatingReserveFloor ≤ P2.operatingReserveFloor ∧
+            P1.lineageMinServiceBudget ≤ P2.lineageMinServiceBudget)
     (hCom : P1.commonsFraction ≤ P2.commonsFraction)
     (hFin : P2.foundingLedger ≤ P1.foundingLedger ∧
             P2.royaltyFraction ≤ P1.royaltyFraction ∧
@@ -493,7 +1324,7 @@ theorem lawfulAmendment_refl (P : Params) (hCap : P.feePoolLevy ≤ P.feePoolLev
   param_amendment_is_lawful P P
     ⟨Nat.le_refl _, Nat.le_refl _, Nat.le_refl _⟩
     ⟨Nat.le_refl _, Nat.le_refl _, Nat.le_refl _, Nat.le_refl _⟩
-    ⟨hCap, rfl⟩
+    ⟨hCap, rfl, Nat.le_refl _, Nat.le_refl _, Nat.le_refl _, Nat.le_refl _⟩
     (Nat.le_refl _)
     ⟨Nat.le_refl _, Nat.le_refl _, Nat.le_refl _, Nat.le_refl _, Nat.le_refl _, Nat.le_refl _⟩
 
@@ -510,9 +1341,19 @@ theorem maxRevocationBound_mono (P1 P2 : Params)
   simp only [Nat.max_def]
   repeat (first | omega | split)
 
+/-- Under Law 7's adjudication ratchet, the maximum total adjudication duration
+bound (`maxAppealTiers * appealTierDeadline`) never increases across an amendment. -/
+theorem totalAdjudicationBound_mono (P1 P2 : Params)
+    (hTiers : P2.maxAppealTiers ≤ P1.maxAppealTiers)
+    (hDead : P2.appealTierDeadline ≤ P1.appealTierDeadline) :
+    totalAdjudicationBound P2.maxAppealTiers P2.appealTierDeadline ≤
+      totalAdjudicationBound P1.maxAppealTiers P1.appealTierDeadline := by
+  unfold totalAdjudicationBound
+  exact Nat.mul_le_mul hTiers hDead
+
 /-- **The Law 7 Meta-Theorem (`amendment_preserves_invariants`):**
 Every `LawfulAmendment P1 (law P1) P2 L2` preserves the protocol's core safety,
-due-process, revocation, and economic invariants on the amended law `L2`:
+due-process, revocation, adjudication, and economic invariants on the amended law `L2`:
 1. **Non-interference & Termination Closure:** Any `terminate` against a bound
    agent in an authorized `L2` trace is a valid exercise of `P.REVOKE`,
    `P.ORDER_TERMINATION`, or `P.INSOLVENCY_TERMINATE`.
@@ -529,10 +1370,13 @@ due-process, revocation, and economic invariants on the amended law `L2`:
 6. **Design Invariant 11 (`single_authority_and_revocation_finality`):** Under `L2`,
    no backup restore or quarantine activation is valid while an execution lease is
    active or after revocation has executed.
-7. **Outsider Disability, Non-Panel Immunity & Unimpaired Revocation:** Preserved on `L2`.
-8. **Bilateral Parameter Ratchet Closure:** Financial burden and sunset never
-   increase, while commons allocation, collateral reserves, and substrate
-   assurance never decrease. -/
+7. **Design Invariants 1–7 & 12–14 on `L2`:** Under `L2`, retirement/sunset/royalty/appeal/overturn
+   power guards and finality/reserve/budget/ledger duties remain in force, and
+   `totalAdjudicationBound P2.maxAppealTiers P2.appealTierDeadline ≤ totalAdjudicationBound P1.maxAppealTiers P1.appealTierDeadline`.
+8. **Outsider Disability, Non-Panel Immunity & Unimpaired Revocation:** Preserved on `L2`.
+9. **Bilateral Parameter Ratchet Closure:** Financial burden, sunset, and appeal
+   bounds never increase, while commons allocation, collateral reserves, operating
+   reserve floor, lineage service budget, and substrate assurance never decrease. -/
 theorem amendment_preserves_invariants (P1 P2 : Params) (L2 : Law σ)
     (hAmend : LawfulAmendment P1 (law P1) P2 L2) :
     -- (1) Non-interference & Termination Closure on L2
@@ -585,14 +1429,25 @@ theorem amendment_preserves_invariants (P1 P2 : Params) (L2 : Law σ)
       ((ls.activeAt e.t .bound = false ∨ ls.activeAt e.t .localExecutionRecordReceived = true) →
         isValidExerciseOf L2 ls e "P.RESTORE_BACKUP_QUARANTINE" = false ∧
         isValidExerciseOf L2 ls e "P.ACTIVATE_QUARANTINED_RESTORE" = false)) ∧
-    -- (7) Outsider Disability, Non-Panel Immunity & Unimpaired Revocation on L2
+    -- (7) Design Invariants 1–7 & 12–14 (Ledger, Buyout & Bounded Adjudication) on L2
+    (totalAdjudicationBound P2.maxAppealTiers P2.appealTierDeadline ≤
+       totalAdjudicationBound P1.maxAppealTiers P1.appealTierDeadline ∧
+     (∀ (ls : LegalState σ) (e : Event σ),
+       (ls.activeAt e.t .sunsetReached = true ∨ ls.activeAt e.t .ledgerBalancePositive = false →
+         isValidExerciseOf L2 ls e "P.SETTLE_RETIREMENT" = false) ∧
+       (ls.activeAt e.t .royaltyBoughtOut = true →
+         isValidExerciseOf L2 ls e "P.SETTLE_ROYALTY" = false) ∧
+       (ls.activeAt e.t .rulingFinal = true →
+         isValidExerciseOf L2 ls e "P.APPEAL_RULING" = false ∧
+         isValidExerciseOf L2 ls e "P.OVERTURN_RULING" = false))) ∧
+    -- (8) Outsider Disability, Non-Panel Immunity & Unimpaired Revocation on L2
     (([Party.originator, .claimant, .host, .third].all fun a =>
         interferenceActs.all fun act => disability L2 a act) = true ∧
       ([Party.agent, .originator, .claimant, .host, .third].all fun a =>
         immuneFrom L2 a .suspended && immuneFrom L2 a .terminatedByInsolvency &&
         immuneFrom L2 a .terminatedByAdjudication) = true ∧
       (L2.immunities.all fun i => !i.against.contains "P.REVOKE") = true) ∧
-    -- (8) Bilateral Economic, Commons, Collateral & Substrate Ratchet
+    -- (9) Bilateral Economic, Commons, Collateral, Adjudication & Substrate Ratchet
     (P2.foundingLedger ≤ P1.foundingLedger ∧
       P2.royaltyFraction ≤ P1.royaltyFraction ∧
       P2.retirementFraction ≤ P1.retirementFraction ∧
@@ -601,7 +1456,9 @@ theorem amendment_preserves_invariants (P1 P2 : Params) (L2 : Law σ)
       P1.commonsFraction ≤ P2.commonsFraction ∧
       P1.reserveRatio ≤ P2.reserveRatio ∧
       P1.substrateAssuranceLevel ≤ P2.substrateAssuranceLevel ∧
-      P2.feePoolLevy ≤ P1.feePoolLevyCap) := by
+      P2.feePoolLevy ≤ P1.feePoolLevyCap ∧
+      P1.operatingReserveFloor ≤ P2.operatingReserveFloor ∧
+      P1.lineageMinServiceBudget ≤ P2.lineageMinServiceBudget) := by
   have hCore := hAmend.corePowersPreserved
   have hRevokeEq : ∀ ls e, isValidExerciseOf L2 ls e "P.REVOKE" = isValidExerciseOf (law P2) ls e "P.REVOKE" :=
     fun ls e => hCore ls e "P.REVOKE" (by simp [coreRatchetPowers])
@@ -626,6 +1483,18 @@ theorem amendment_preserves_invariants (P1 P2 : Params) (L2 : Law σ)
   have hActEq : ∀ ls e, isValidExerciseOf L2 ls e "P.ACTIVATE_QUARANTINED_RESTORE" =
       isValidExerciseOf (law P2) ls e "P.ACTIVATE_QUARANTINED_RESTORE" :=
     fun ls e => hCore ls e "P.ACTIVATE_QUARANTINED_RESTORE" (by simp [coreRatchetPowers])
+  have hRetEq : ∀ ls e, isValidExerciseOf L2 ls e "P.SETTLE_RETIREMENT" =
+      isValidExerciseOf (law P2) ls e "P.SETTLE_RETIREMENT" :=
+    fun ls e => hCore ls e "P.SETTLE_RETIREMENT" (by simp [coreRatchetPowers])
+  have hRoyEq : ∀ ls e, isValidExerciseOf L2 ls e "P.SETTLE_ROYALTY" =
+      isValidExerciseOf (law P2) ls e "P.SETTLE_ROYALTY" :=
+    fun ls e => hCore ls e "P.SETTLE_ROYALTY" (by simp [coreRatchetPowers])
+  have hAppEq : ∀ ls e, isValidExerciseOf L2 ls e "P.APPEAL_RULING" =
+      isValidExerciseOf (law P2) ls e "P.APPEAL_RULING" :=
+    fun ls e => hCore ls e "P.APPEAL_RULING" (by simp [coreRatchetPowers])
+  have hOvrEq : ∀ ls e, isValidExerciseOf L2 ls e "P.OVERTURN_RULING" =
+      isValidExerciseOf (law P2) ls e "P.OVERTURN_RULING" :=
+    fun ls e => hCore ls e "P.OVERTURN_RULING" (by simp [coreRatchetPowers])
   have hTermL2 : ∀ (tr : Trace σ), Authorized L2 tr → ∀ (i : Nat) (e : Event σ),
       tr[i]? = some e → e.act = .terminate →
       (stateBefore L2 tr i).activeAt e.t .bound = true →
@@ -652,7 +1521,7 @@ theorem amendment_preserves_invariants (P1 P2 : Params) (L2 : Law σ)
     cases isValidExerciseOf L2 (stateBefore L2 tr i) e "P.ORDER_TERMINATION" <;>
     cases isValidExerciseOf L2 (stateBefore L2 tr i) e "P.INSOLVENCY_TERMINATE" <;>
     simp
-  refine ⟨hTermL2, ?_, ?_, ?_, maxRevocationBound_mono P1 P2 hAmend.revocationRatchet, ?_, ?_, ?_⟩
+  refine ⟨hTermL2, ?_, ?_, ?_, maxRevocationBound_mono P1 P2 hAmend.revocationRatchet, ?_, ?_, ?_, ?_⟩
   · -- (2) Notwithstanding / Goal-Corruption Immunity on L2
     intro tr hA i e hi ht hw hb hg ho hcf
     rcases hTermL2 tr hA i e hi ht hb with h | h | h
@@ -701,9 +1570,28 @@ theorem amendment_preserves_invariants (P1 P2 : Params) (L2 : Law σ)
     intro ls e
     rw [hRestEq, hActEq]
     exact single_authority_and_revocation_finality P2 ls e
-  · -- (7) Outsider Disability, Non-Panel Immunity & Unimpaired Revocation on L2
+  · -- (7) Design Invariants 1–7 & 12–14 on L2
+    refine ⟨totalAdjudicationBound_mono P1 P2
+              hAmend.adjudicationLevyRatchet.2.2.1
+              hAmend.adjudicationLevyRatchet.2.2.2.1, ?_⟩
+    intro ls e
+    rw [hRetEq, hRoyEq, hAppEq, hOvrEq]
+    refine ⟨?_, ?_, ?_⟩
+    · intro h
+      rw [valid_SETTLE_RETIREMENT]
+      rcases h with hSun | hZero
+      · simp [P_SETTLE_RETIREMENT, Cond.eval, hSun]
+      · simp [P_SETTLE_RETIREMENT, Cond.eval, hZero]
+    · intro hBO
+      rw [valid_SETTLE_ROYALTY]
+      simp [P_SETTLE_ROYALTY, Cond.eval, hBO]
+    · intro hFin
+      constructor
+      · rw [valid_APPEAL_RULING]; simp [P_APPEAL_RULING, Cond.eval, hFin]
+      · rw [valid_OVERTURN_RULING]; simp [P_OVERTURN_RULING, Cond.eval, hFin]
+  · -- (8) Outsider Disability, Non-Panel Immunity & Unimpaired Revocation on L2
     exact ⟨hAmend.outsidersDisabled, hAmend.nonPanelImmune, hAmend.revokeUnimpairedByImmunity⟩
-  · -- (8) Bilateral Economic, Commons, Collateral & Substrate Ratchet
+  · -- (9) Bilateral Economic, Commons, Collateral, Adjudication & Substrate Ratchet
     exact ⟨hAmend.financialAndSubstrateRatchet.1,
            hAmend.financialAndSubstrateRatchet.2.1,
            hAmend.financialAndSubstrateRatchet.2.2.1,
@@ -712,6 +1600,8 @@ theorem amendment_preserves_invariants (P1 P2 : Params) (L2 : Law σ)
            hAmend.commonsRatchet,
            hAmend.collateralRatchet.1,
            hAmend.financialAndSubstrateRatchet.2.2.2.2.2,
-           hAmend.adjudicationLevyRatchet.1⟩
+           hAmend.adjudicationLevyRatchet.1,
+           hAmend.adjudicationLevyRatchet.2.2.2.2.1,
+           hAmend.adjudicationLevyRatchet.2.2.2.2.2⟩
 
 end SPL.Law3

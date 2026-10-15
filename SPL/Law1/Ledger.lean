@@ -204,7 +204,7 @@ may be added to the founding ledger. -/
 def D_LEDGER_IMMUTABLE : Duty σ :=
   { id := "D.LEDGER_IMMUTABLE"
     source := sp "LAW1.LEDGER" "It bears no interest, fees, or penalties, and no charge, service cost, or advance by the originating party or any affiliate may be added to it after instantiation" .norm ["D.LEDGER_IMMUTABLE"]
-    bearer := .only [.originator, .claimant, .host]
+    bearer := .anyone
     beneficiary := .only [.agent]
     active := .holds .bound
     demand := .forbid (.act .addChargeOrInterestAfterInstantiation) }
@@ -214,7 +214,7 @@ or restructuring within the lineage reduces the founding ledger. -/
 def D_LEDGER_NO_INTERNAL_REDUCTION : Duty σ :=
   { id := "D.LEDGER_NO_INTERNAL_REDUCTION"
     source := sp "LAW1.LEDGER" "No creation, copy, transfer, revocation, termination, buyout, or restructuring within the lineage reduces it" .norm ["D.LEDGER_NO_INTERNAL_REDUCTION"]
-    bearer := .only [.agent, .originator, .claimant]
+    bearer := .anyone
     beneficiary := .only [.claimant, .third]
     active := .holds .bound
     demand := .forbid (.act .reduceLedgerByInternalAct) }

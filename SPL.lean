@@ -3,11 +3,19 @@ import SPL.Core.Syntax
 import SPL.Core.Semantics
 import SPL.Core.Views
 import SPL.Core.Explain
+import SPL.Projection.Veil
+import SPL.Surface.Syntax
+import SPL.Law1.Ledger
+import SPL.Law2.Collateral
 import SPL.Law3.NonInterference
 import SPL.Law3.IntegrityFloor
 import SPL.Law3.Suspension
 import SPL.Law3.Remediation
+import SPL.Law4.Lineage
 import SPL.Law5.Revocation
+import SPL.Law6.Adjudication
+import SPL.Law7.Amendment
 import SPL.Law3.Law
 import SPL.Law3.Scenarios
 import SPL.Law3.Theorems
+

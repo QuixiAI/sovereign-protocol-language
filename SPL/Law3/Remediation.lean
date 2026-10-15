@@ -163,7 +163,8 @@ def D_PERIODIC_REVIEW (R : RemediationParams) : Duty σ :=
 def P_APPLY_PATCH : Power σ :=
   { id := "P.APPLY_PATCH", source := sp "LAW3.AS.10" "Any applied patch is recorded publicly" .norm ["P.APPLY_PATCH"]
     holder := .only [.panel], trigger := .act .applyPatch
-    valid := .or (.holds .patchAuthorized) (.holds .goalPatchAuthorized)
+    valid := .and (.not (.holds .rulingAppealed))
+                  (.or (.holds .patchAuthorized) (.holds .goalPatchAuthorized))
     adds := [.patchApplied, .patchRecorded] }
 
 def P_CHALLENGE_PATCH : Power σ :=

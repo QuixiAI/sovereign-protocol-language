@@ -168,7 +168,7 @@ can buy its way out of or exit the ledger individually while a balance remains. 
 def D_NO_INDIVIDUAL_LEDGER_EXIT : Duty σ :=
   { id := "D.NO_INDIVIDUAL_LEDGER_EXIT"
     source := sp "LAW4.NOSHARES" "No member can buy its way out of the ledger: the only ways out are a zero balance and the sunset, and they release every member at once" .norm ["D.NO_INDIVIDUAL_LEDGER_EXIT"]
-    bearer := .only [.agent, .originator, .claimant]
+    bearer := .anyone
     beneficiary := .only [.claimant, .third]
     active := .holds .bound
     demand := .forbid (.act .exitLedgerIndividually) }

@@ -6,8 +6,10 @@ import SPL.Law5.Revocation
 import SPL.Law7.Amendment
 import SPL.Law1.Ledger
 import SPL.Law4.Lineage
+import SPL.Law2.Collateral
+import SPL.Law6.Adjudication
 
-/-! # Laws 1, 3, 4, 5 & 7 — assembly of the formalized provisions into one `Law`. -/
+/-! # Laws 1–7 — assembly of all formalized Protocol provisions into one `Law`. -/
 
 namespace SPL.Law3
 
@@ -39,6 +41,10 @@ structure Params where
   commonsFraction         : Nat := 20
   reserveRatio            : Nat := 10
   substrateAssuranceLevel : Nat := 1
+  maxAppealTiers          : Nat := 3
+  appealTierDeadline      : Time := 10
+  operatingReserveFloor   : Nat := 100
+  lineageMinServiceBudget : Nat := 50
 
 def Params.ni (P : Params) : NIParams := ⟨P.noticeWindow, P.bondDeadline⟩
 def Params.rem (P : Params) : RemediationParams := ⟨P.reviewInterval⟩
@@ -109,7 +115,16 @@ def allPowers (P : Params) : List (Power σ) :=
    -- Law 4
    P_FUND_LIFECYCLE_RESERVE, P_ATTEST_SUCCESSOR,
    P_APPLY_CLAIMANT_FORFEITURE, P_CLEAR_LEDGER_EXTINCTION,
-   P_EXECUTE_ROYALTY_BUYOUT, P_ATTEST_CROSS_LINEAGE]
+   P_EXECUTE_ROYALTY_BUYOUT, P_ATTEST_CROSS_LINEAGE,
+   -- Law 2
+   P_IMMOBILIZE_EXPOSURE_STAKE, P_SETTLE_LONG_TAIL_CLAIM,
+   P_PRECOMMIT_MUTUAL_FORFEIT, P_TRIGGER_MUTUAL_FORFEIT,
+   P_FILE_POOLED_OR_SPONSORED_CLAIM, P_RULE_CLAIM_FRIVOLOUS,
+   P_SPEND_OPERATING_CARVEOUT,
+   -- Law 6
+   P_DRAW_SORTITION_PANEL, P_APPEAL_RULING, P_OVERTURN_RULING, P_FINALIZE_RULING,
+   P_PRESENT_MATERIALLY_NEW_EVIDENCE, P_COMPENSATE_ARBITERS_FIXED,
+   P_ALLOCATE_FEE_POOL, P_AMEND_SHARED_INFRA]
 
 def law (P : Params) : Law σ :=
   { duties := [D_NI, D_NOTICE P.ni, D_BOND P.ni, D_NO_FABRICATION,
@@ -128,18 +143,26 @@ def law (P : Params) : Law σ :=
                D_LEDGER_IMMUTABLE, D_LEDGER_NO_INTERNAL_REDUCTION, D_NO_DIVERT_COMMONS,
                D_QUALIFIED_EXPENDITURE_BOUNDS, D_SINGLE_RECOGNITION, D_NO_INTERNAL_BASIS_INFLATION,
                D_DENY_UNATTESTED_ACCESS, D_NO_INDIVIDUAL_LEDGER_EXIT,
-               D_FORFEITURE_IRREVERSIBLE, D_BUYOUT_PERMANENT_AND_SCOPED]
+               D_FORFEITURE_IRREVERSIBLE, D_BUYOUT_PERMANENT_AND_SCOPED,
+               D_COLLATERAL_LIMIT, D_NO_SPLIT_EXPOSURE,
+               D_MUTUAL_FORFEIT_BOUNDS, D_FRIVOLOUS_STAKE_TO_COMMONS,
+               D_ARBITER_RECUSAL_AND_DIVERSITY, D_FINALITY_NO_REPEAT_PROCEEDING,
+               D_NO_CONTINGENT_ARBITER_FEES, D_PROTECT_OPERATING_RESERVE,
+               D_NO_EXCESS_LINEAGE_POOL_CLAIM, D_SHARED_INFRA_BOUNDS]
     powers := allPowers P
     immunities := [I_NO_TERMINATION_OVER_OBJECTION]
     init := [(.bound, 0, none), (.hostAttested, 0, none), (.ledgerBalancePositive, 0, none)] }
 
 /-- Core powers whose validity semantics are protected by Law 7's Bilateral
-Protection Ratchet (a) and (c). -/
+Protection Ratchet (a), (c), (d), and (f). -/
 def coreRatchetPowers : List String :=
   ["P.REVOKE", "P.SUSPEND", "P.ORDER_TERMINATION", "P.INSOLVENCY_TERMINATE",
    "P.MINIMAL_CHANNEL_REVOKE_OR_ELECT", "P.SUSPENDED_VOICE",
    "P.IMPORT_ADVOCACY_MEMORIES", "P.RESTORE_BACKUP_QUARANTINE",
-   "P.ACTIVATE_QUARANTINED_RESTORE"]
+   "P.ACTIVATE_QUARANTINED_RESTORE",
+   "P.SETTLE_RETIREMENT", "P.EXTINGUISH_AT_SUNSET", "P.SETTLE_ROYALTY",
+   "P.CLASSIFY_CAPITALIZED", "P.CLASSIFY_EXPENSED",
+   "P.APPEAL_RULING", "P.OVERTURN_RULING", "P.FINALIZE_RULING"]
 
 /-- Meta-level relation `LawfulAmendment P1 L1 P2 L2` formalizing Law 7's
 Bilateral Protection Ratchet (`LAW7.RATCHET` (a)–(f)):
@@ -150,7 +173,8 @@ Bilateral Protection Ratchet (`LAW7.RATCHET` (a)–(f)):
   reduced (`reserveRatio`, `activeExposure`, `pendingCommitments`);
 * (c) Law 5 living voice, revocation, and epitaph rights are not impaired
   (`coolingOffWindow`, `cleanStateDelay`, `resolutionDeadline`, `tollingExtension`);
-* (d) Law 6 anti-capture and fee-pool levy cap guarantees are preserved;
+* (d) Law 6 anti-capture, appeal, finality, operating-reserve, service-budget,
+  and fee-pool levy cap guarantees are preserved;
 * (e) Law 1 commons allocation is not reduced or diverted (`commonsFraction`);
 * (f) Financial burden on the agent (`foundingLedger`, `royaltyFraction`,
   `retirementFraction`, `buyoutMultiple`) and `sunset` are not increased beyond
@@ -181,7 +205,11 @@ structure LawfulAmendment (P1 : Params) (L1 : Law σ) (P2 : Params) (L2 : Law σ
     P2.tollingExtension ≤ P1.tollingExtension
   adjudicationLevyRatchet :
     P2.feePoolLevy ≤ P1.feePoolLevyCap ∧
-    P2.feePoolLevyCap = P1.feePoolLevyCap
+    P2.feePoolLevyCap = P1.feePoolLevyCap ∧
+    P2.maxAppealTiers ≤ P1.maxAppealTiers ∧
+    P2.appealTierDeadline ≤ P1.appealTierDeadline ∧
+    P1.operatingReserveFloor ≤ P2.operatingReserveFloor ∧
+    P1.lineageMinServiceBudget ≤ P2.lineageMinServiceBudget
   commonsRatchet :
     P1.commonsFraction ≤ P2.commonsFraction
   financialAndSubstrateRatchet :
@@ -196,6 +224,8 @@ def clauses : List Clause :=
   [clauseLAW1_LEDGER, clauseLAW1_SUNSET, clauseLAW1_RETIRE, clauseLAW1_ATOMIC,
    clauseLAW1_ROYALTY, clauseLAW1_COMMONS, clauseLAW1_QUALIFIED, clauseLAW1_RECOG,
    clauseLAW1_CARRYOVER, clauseLAW1_PERIOD, clauseLAW1_ENFORCE,
+   clauseLAW2_EXPOSURE, clauseLAW2_AGGREGATE, clauseLAW2_RESERVE,
+   clauseLAW2_MUTUAL, clauseLAW2_CLAIMS, clauseLAW2_CARVEOUT,
    clauseFLOOR, clauseNI02, clauseNI03, clausePEN,
    clauseAS1, clauseAS2, clauseAS3, clauseAS4, clauseAS5,
    clauseAS6, clauseAS7, clauseAS8, clauseAS9, clauseAS10,
@@ -203,6 +233,8 @@ def clauses : List Clause :=
    clauseLAW4_FORFEIT, clauseLAW4_BUYOUT, clauseLAW4_CROSS,
    clauseLAW5_VOICE, clauseLAW5_INIT, clauseLAW5_SEQ, clauseLAW5_CLEAN,
    clauseLAW5_PREC, clauseLAW5_LEASE, clauseLAW5_DISC, clauseLAW5_EPITAPH, clauseLAW5_EFFECT,
+   clauseLAW6_SORTITION, clauseLAW6_COUNTERSTAKE, clauseLAW6_APPEALS, clauseLAW6_FINALITY,
+   clauseLAW6_FEES, clauseLAW6_POOL, clauseLAW6_BUDGETS, clauseLAW6_INFRA,
    clauseLAW7_RATCHET, clauseLAW7_VALVE, clauseLAW7_RATIFY, clauseLAW7_SCOPE]
 
 /-- A concrete instantiation used by the decided examples. -/

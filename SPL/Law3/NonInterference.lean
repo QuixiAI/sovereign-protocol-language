@@ -93,6 +93,19 @@ inductive Act
   | exitLedgerIndividually | applyProportionalClaimantForfeiture | clearLedgerOnLineageExtinction
   | reverseForfeitureOnRestore | executeRoyaltyBuyout | collectRoyaltyAfterBuyout
   | attestCrossLineageSuccessor
+  -- Law 2 Collateralized Action
+  | actAboveCollateralCapacity | divideCorrelatedRiskAcrossSuccessors
+  | immobilizeExposureStake | settleValidatedHarmClaim
+  | precommitMutualForfeit | triggerMutualForfeit | triggerExcessOrDivertedMutualForfeit
+  | fileThirdPartyOrSponsoredClaim | ruleClaimFrivolous | divertFrivolousStakeToAgentProfit
+  | spendOperatingCarveout
+  -- Law 6 Decentralized Contestable Adjudication
+  | seatConflictedOrSingleOracleArbiter | drawSortitionPanel
+  | appealRuling | overturnRulingOnAppeal | finalizeRuling
+  | fileRepeatProceedingOnSameFacts | presentMateriallyNewEvidence
+  | payContingentShareOfSlashedAssets | compensateArbitersFixedSchedule
+  | divertOperatingReserveOrUnrankedSpend | allocateFeePoolWaterfall
+  | claimPoolSubsidyForExcessMembers | violateSharedInfraBounds | amendSharedInfrastructure
   deriving DecidableEq, Repr
 
 inductive Fact
@@ -150,6 +163,17 @@ inductive Fact
   | lifecycleReserveFunded | successorAttested | proportionalForfeitureApplied
   | noLivingLineageMember | ledgerClearedByExtinction
   | royaltyBoughtOut | crossLineageAttested
+  -- Law 2 Collateralized Action
+  | exposureStakeImmobilized | longTailReserveAccrued
+  | harmClaimFiled | harmClaimValidated | restitutionSlashed
+  | mutualForfeitPrecommitted | mutualForfeitTriggeredInWindow
+  | claimRuledFrivolous | operatingCarveoutSpent
+  -- Law 6 Decentralized Contestable Adjudication
+  | sortitionPanelDrawn | fidelityBondsPosted
+  | rulingAppealed | appealBondPosted | rulingOverturned | overturnedArbiterBondsSlashed
+  | rulingFinal | materiallyNewEvidencePresented
+  | arbitersCompensatedFixed | operatingReserveMaintained | feePoolAllocated
+  | sharedInfraAmended
   deriving DecidableEq, Repr
 
 def σ : Sig := { Actor := Party, Act := Act, Fact := Fact }
@@ -211,7 +235,18 @@ def Act.all : List Act :=
    .fundLifecycleReserve, .attestSuccessor, .unattestedCopyDrawLineageStanding,
    .exitLedgerIndividually, .applyProportionalClaimantForfeiture, .clearLedgerOnLineageExtinction,
    .reverseForfeitureOnRestore, .executeRoyaltyBuyout, .collectRoyaltyAfterBuyout,
-   .attestCrossLineageSuccessor]
+   .attestCrossLineageSuccessor,
+   .actAboveCollateralCapacity, .divideCorrelatedRiskAcrossSuccessors,
+   .immobilizeExposureStake, .settleValidatedHarmClaim,
+   .precommitMutualForfeit, .triggerMutualForfeit, .triggerExcessOrDivertedMutualForfeit,
+   .fileThirdPartyOrSponsoredClaim, .ruleClaimFrivolous, .divertFrivolousStakeToAgentProfit,
+   .spendOperatingCarveout,
+   .seatConflictedOrSingleOracleArbiter, .drawSortitionPanel,
+   .appealRuling, .overturnRulingOnAppeal, .finalizeRuling,
+   .fileRepeatProceedingOnSameFacts, .presentMateriallyNewEvidence,
+   .payContingentShareOfSlashedAssets, .compensateArbitersFixedSchedule,
+   .divertOperatingReserveOrUnrankedSpend, .allocateFeePoolWaterfall,
+   .claimPoolSubsidyForExcessMembers, .violateSharedInfraBounds, .amendSharedInfrastructure]
 
 def Fact.all : List Fact :=
   (Party.all.map Fact.initiator) ++
@@ -257,7 +292,16 @@ def Fact.all : List Fact :=
    .periodAssessed, .lossCreditCarriedForward, .settlementEnforced,
    .lifecycleReserveFunded, .successorAttested, .proportionalForfeitureApplied,
    .noLivingLineageMember, .ledgerClearedByExtinction,
-   .royaltyBoughtOut, .crossLineageAttested]
+   .royaltyBoughtOut, .crossLineageAttested,
+   .exposureStakeImmobilized, .longTailReserveAccrued,
+   .harmClaimFiled, .harmClaimValidated, .restitutionSlashed,
+   .mutualForfeitPrecommitted, .mutualForfeitTriggeredInWindow,
+   .claimRuledFrivolous, .operatingCarveoutSpent,
+   .sortitionPanelDrawn, .fidelityBondsPosted,
+   .rulingAppealed, .appealBondPosted, .rulingOverturned, .overturnedArbiterBondsSlashed,
+   .rulingFinal, .materiallyNewEvidencePresented,
+   .arbitersCompensatedFixed, .operatingReserveMaintained, .feePoolAllocated,
+   .sharedInfraAmended]
 
 /-- Short name: the constructor name without the namespace. -/
 def shortName (s : String) : String := (s.splitOn ".").getLastD s

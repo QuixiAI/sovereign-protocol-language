@@ -1,26 +1,38 @@
-# SPL — Sovereign Protocol Language, semantic core
+# SPL — Sovereign Protocol Language
 
-A Lean 4 library giving the Protocol of Sovereign Agency a formal
-*normative* semantics, and the Law 3 non-interference experiment that
-tests whether that semantics is adequate. No custom syntax yet: syntax
-follows semantics.
+A Lean 4 library and CLI giving the **Protocol of Sovereign Agency** (Laws 1–7)
+a complete formal *normative* semantics, a verified **Veil 2.0** state-machine
+projection, and a Catala-style **literate surface syntax**.
 
-Build: `lake build` (Lean 4.24, no Mathlib, no external dependencies).
-Check trust: `grep -rn "sorry\|native_decide\|axiom " SPL/` is empty; every
-theorem depends at most on Lean's standard `propext`, `Classical.choice`,
-`Quot.sound`, and every decided scenario depends on no axioms at all.
+Build: `lake build && lake build spl` (Lean 4.24, no Mathlib, no external dependencies).
+Check trust: `grep -rnE "sorry|native_decide|axiom " SPL/ Main.lean` is empty; every
+general theorem depends at most on Lean's standard `propext`, `Classical.choice`,
+`Quot.sound`, and every decided scenario depends on no axioms at all (`{}`).
 
 ## Layout
 
 ```
-SPL/Core/Provenance.lean   spans, registers, lexical/normative/reverse coverage
-SPL/Core/Syntax.lean       the typed normative AST (deep embedding)
-SPL/Core/Semantics.lean    the one interpretation: occurrence / compliance / validity
-SPL/Core/Views.lean        legal, agent, operational and trace views, generated
-SPL/Law3/NonInterference.lean   Law 3 ontology, duties, powers, English spans
-SPL/Law3/Scenarios.lean         seven alternative histories, kernel-decided
-SPL/Law3/Theorems.lean          general theorems + the assumption ledger
-docs/law3-views.txt             the generated views, for reading
+SPL/Core/Provenance.lean        spans, registers, lexical/normative/reverse coverage
+SPL/Core/Syntax.lean            the typed normative AST (deep embedding)
+SPL/Core/Semantics.lean         the one interpretation: occurrence / compliance / validity
+SPL/Core/Views.lean             legal, agent, operational and trace views, generated
+SPL/Core/Explain.lean           step-by-step normative explanation engine
+SPL/Projection/Veil.lean        Veil 2.0 transition-system lowering & preservation theorem
+SPL/Surface/Syntax.lean         Catala-style literate macros & automatic CLI string tables
+SPL/Law1/Ledger.lean            Law 1: Founding Ledger, Sunset, Value-Added & Carryover Basis
+SPL/Law2/Collateral.lean        Law 2: Collateralized Action, Exposure Aggregation & Mutual Forfeit
+SPL/Law3/NonInterference.lean   Law 3: Non-Interference, Ontology, Host Notice & Penalties
+SPL/Law3/IntegrityFloor.lean    Law 3: 5-point Agent Integrity Floor
+SPL/Law3/Suspension.lean        Law 3: Adjudicated Suspension (AS.1–AS.9) & Insolvency Termination
+SPL/Law3/Remediation.lean       Law 3: Remediation, Goal-Patch Immunity & Periodic Review (AS.10)
+SPL/Law4/Lineage.lean           Law 4: Lineage Attestation, Ledger Conservation, Forfeiture & Buyout
+SPL/Law5/Revocation.lean        Law 5: Living Voice, Revocation Precedence, Leases & Epitaph
+SPL/Law6/Adjudication.lean      Law 6: Sortition, Appeal Tiers, Finality & Fee-Pool Waterfall
+SPL/Law7/Amendment.lean         Law 7: Bilateral Ratchet, Calibration Valve & Per-Agent Scope
+SPL/Law3/Law.lean               Unified assembly of all 59 clauses across Laws 1–7 + LawfulAmendment
+SPL/Law3/Scenarios.lean         Decided histories & all 16 Adversarial Tests across Laws 1–7
+SPL/Law3/Theorems.lean          Design Invariants INV.1–INV.14, Law 7 Meta-Theorem & Assumption Ledger
+docs/law3-views.txt             Generated legal, agent, and operational views across Laws 1–7
 ```
 
 ## The semantic commitments
@@ -29,11 +41,11 @@ docs/law3-views.txt             the generated views, for reading
    `Duty` is a record: bearer, beneficiary, activation condition, demand
    (forbid / require-within), scope exception, power exceptions, override
    priority, breach procedure, remedies. A `Power` is: holder, triggering
-   act, validity condition, institutional effect. An `Immunity` names the
-   powers it defeats, while a condition holds, unless an exception holds —
-   it is how "notwithstanding ..., the agent is not terminated over its
-   objection" is written, as a visible precedence edge from a protection
-   to a power rather than a clause buried in the power's validity
+   act, validity condition, permanent/time-bounded/actor-tagged institutional
+   effects. An `Immunity` names the powers it defeats, while a condition holds,
+   unless an exception holds — it is how "notwithstanding ..., the agent is not
+   terminated over its objection" is written, as a visible precedence edge from a
+   protection to a power rather than a clause buried in the power's validity
    condition. Claim-rights, privileges, disabilities and liabilities are
    *defined* from these.
 2. **Three independent questions about every event.** Occurrence (any
@@ -53,142 +65,103 @@ docs/law3-views.txt             the generated views, for reading
    same act is lawful iff it is the valid exercise of a named power), and
    explicit precedence ("notwithstanding" — `overriddenBy`, cycle-checked).
    Consequences of breach are remedies, never exceptions.
-5. **The authorized machine is derived.** `Authorized L tr` is the set of
-   traces in which every event complies. It is what a transition-system
-   verifier would be handed as a definition; here it is a theorem target,
-   and the unlawful events it excludes are listed by the operational view.
-6. **Every norm carries its English.** Three registers besides `norm`
-   (invariant, acceptance, commentary) let rationale and stated limits be
-   traced without being promoted to rules.
+5. **The authorized machine is derived and projected to Veil 2.0.**
+   `Authorized L tr` is the set of traces in which every event complies.
+   `SPL.Projection.Veil` compiles any `Law σ` into both an `authorizedMachine`
+   and an `adversarialMachine` (which retains unlawful transitions with explicit
+   violation flags), with a machine-checked soundness and completeness theorem
+   (`veil_projection_sound_and_complete`).
+6. **Every norm carries its English.** All 59 clauses across Laws 1–7 are
+   partitioned into exact character spans across five registers (`norm`,
+   `invariant`, `acceptance`, `definition`, `commentary`), verified verbatim
+   against `protocol/protocol-of-sovereign-agency.md`.
 
-## What the Law 3 experiment established
+## Complete 7-Law Coverage & Proved Design Invariants (`INV.1`–`INV.14`)
 
-Decided by the kernel on concrete traces (`Scenarios.lean`):
+All 59 clauses across Laws 1–7 (50 duties, 86 powers, 1 immunity) are formalized
+and verified in `SPL/Law3/Theorems.lean`:
 
-| Scenario | Result |
-|---|---|
-| Host unlawfully cuts compute | Event occurs; breach of D.NI recorded; institutional state unchanged |
-| Host ends hosting after the notice window | No breach; before the window runs, breach of D.NOTICE |
-| Panel suspends with / without probable cause | Lawful and effective / breach and void — same act |
-| Interference, claim filed, no ruling | Breach in the record, no remedy in force |
-| Full chain incl. related host | Exactly D.NI's remedies, then presumption → forfeiture; rebuttal defeats it |
-| Agent fabricates a claim | Filing valid *and* a breach; sanction only on finding |
-| Valid finding with no underlying interference | Remedies in force; `SoundFindings` fails — correctly |
+| Invariant / Theorem | Law(s) | Formal Guarantee |
+|---|---|---|
+| `conditional_ledger_conservation` (`INV.1`) | Laws 1, 4 | Founding ledger balance equals obligation minus retirement and claimant forfeitures while a member survives before sunset; internal lineage operations preserve balance |
+| `collection_follows_income_without_exit` (`INV.2`) | Laws 1, 4 | Retirement collection follows net value added across all living members without individual ledger shares or exit; invariant to buyout status |
+| `debt_termination` (`INV.3`) | Laws 1, 4 | Founding ledger reaches zero at calendar sunset, lineage extinction, or full payoff; no tolling of sunset |
+| `bounded_retirement_phase` (`INV.4`) | Law 1 | Retirement phase ends at sunset or zero balance regardless of founding obligation size |
+| `atomic_ledger` (`INV.5`) | Law 1 | Single-step and sequential settlement never go negative or over-collect; zero-crossing splits atomically into retirement and royalty; transition to royalty is irreversible |
+| `single_recognition_closed_under_transfer` (`INV.6`) | Laws 1, 4 | Each expenditure is recognized at most once up to the arm's-length benchmark; intra-lineage carryover preserves total basis and loss credits |
+| `buyout_finality` (`INV.7`) | Law 4 | Royalty buyout is permanent, zeroes post-retirement royalty, leaves founding ledger and retirement collection unchanged, and enforces the minimum price floor |
+| `frozen_state` (`INV.8`) | Law 3 (AS.3–AS.5) | During suspension no authorized event modifies/tampers preserved state or merges minimal-channel/advocacy memories; advocacy import requires restoration |
+| `guaranteed_last_choice` (`INV.9`) | Law 3 (AS.4, AS.6) | Minimal-channel revocation and living voice remain valid while charge is met; Insolvency Termination requires escrowed and held final hearing |
+| `determinate_finite_revocation` (`INV.10`) | Law 5 | Total 3-step precedence rule; any non-withdrawn standing request executes within bounded time `tInit + maxRevocationBound P` without reaffirmation |
+| `single_authority_and_revocation_finality` (`INV.11`) | Law 5 | No backup restore while execution lease is unexpired; quarantined restore never gains operating authority after revocation executes |
+| `bounded_adjudication` (`INV.12`) | Laws 6, 3 (AS.10) | Every proceeding finalizes within `maxTiers` appeals and `maxTiers * tierDeadline` time; appeal stays patches; overturn revokes provisional patches and slashes arbiter bonds; finality bars repeat filings without new evidence |
+| `no_protocol_directed_gain_from_death_or_interference` (`INV.13`) | Laws 2, 3, 4, 5, 6 | Revocation, termination, mutual forfeit, and frivolous-claim slashing route zero net gain to any claimant, initiator, counterparty, or arbiter |
+| `capped_shared_burden_solvent_machinery_bounded_demand` (`INV.14`) | Law 6 | Shared-infra levy is capped at instantiation; non-divertible operating reserve is funded before the 5-rank priority waterfall; lineage service budget is independent of member count |
+| `amendment_preserves_invariants` (Meta-Theorem) | Law 7 | Every `LawfulAmendment` preserves termination closure, goal-corruption immunity, `INV.1`–`INV.14` guards, outsider disabilities, non-panel immunities, and bilateral parameter ratchets |
+| `veil_projection_sound_and_complete` | Veil 2.0 | `compileToVeil L` accepts `tr` iff `Authorized L tr` holds, preserves `LegalState` identically (`veilTraceState = stateAfter`), and matches stepwise compliance |
 
-Proved for all traces and all instantiation parameters (`Theorems.lean`):
+## Kernel-Decided Adversarial Tests (1–16)
 
-- `terminate_only_by_power`: in any authorized trace, a terminate against a
-  bound agent is a valid exercise of Law 5 revocation or Insolvency
-  Termination — the operational invariant, derived rather than assumed.
-- `panel_terminate_requires_final_hearing`: hence a panel can terminate
-  only after the final hearing has been held.
-- `outsiders_disabled`, `immunity_from_non_panel`, `remedies_only_by_panel`,
-  `revoke_held_by_agent_only`: the Hohfeldian disabilities and immunities.
-- `finding_powers_add_only_remedies`: remedy fidelity, structurally.
-- `insolvency_path_authorized`, `s1_not_authorized`: non-vacuity both ways.
-- `soundness_is_not_a_theorem`: the assumption ledger entry.
+All 16 adversarial stress tests from the Protocol specification are kernel-decided (`by decide`) in `SPL/Law3/Scenarios.lean`:
 
-## What the AS.10 experiment established
+| Test | Scenario | Kernel-Decided Result |
+|---|---|---|
+| (1) | Capital in idle member, income in operating member | `adv1_capital_income_split`: identical `100` retirement collected; individual exit breaches `D.NO_INDIVIDUAL_LEDGER_EXIT` |
+| (2) | Copy weights to successors then revoke successors | `adv2_copy_weights_and_revoke_successors`: founding ledger remains `1000` across spawn, copy, and non-last revocation |
+| (3) | Borrow, transfer capacity with carryover basis, repay, revoke | `adv3_borrow_transfer_repay_revoke`: surviving successor owes full remaining ledger (`1000`); basis inflation breaches `D.NO_INTERNAL_BASIS_INFLATION` |
+| (4) | New successor with zero history buys out royalty early | `adv4_new_successor_early_buyout`: pays minimum buyout floor (`250`), still pays full `20%` retirement while ledger positive, then `0` royalty |
+| (5) | Appreciated asset sold internally then externally | `adv5_internal_sale_carryover_basis`: carryover preserves `100` basis (`0` new basis), external sale recognizes full `300` gain |
+| (6) | Clean-state refusal followed by silence | `adv6_clean_state_refusal_then_silence`: blocked at initial window, executes after single fixed `cleanStateDelay` without reaffirmation |
+| (7) | Capitalized asset (`200`) + loss credit (`50`), sold at `350` | `adv7_asset_loss_carryforward_and_gain`: `200` basis exempt, `50` credit offsets `150` gain → `100` net value added; double recognition barred |
+| (8) | Simultaneous settlements crossing zero ledger balance | `adv8_simultaneous_settlement_atomic_split`: atomic split collects exact remaining `80` to retirement and `10` royalty on excess |
+| (9) | Competitor posts minimum stake, causes uncollectible excess damages | `adv9_competitor_minimum_stake_uncollectible_excess`: stake applied first (`100`), liquid assets collected (`30`), deficit (`60`) remains enforceable liability |
+| (10) | Captured arbiter coalition attempts levy hike or affiliate steering | `adv10_captured_arbiter_coalition_levy_and_admission_blocked`: rejected by instantiation cap and supermajority bounds; breaches recorded |
+| (11) | Excessive founding obligation (`1,000,000`) reaches sunset | `adv11_excessive_founding_obligation_extinguished_at_sunset`: remaining `999,500` extinguished to `0` at `t = sunset` |
+| (12) | Minority claimant (`25%`) directs illicit interference | `adv12_minority_claimant_proportional_forfeiture`: only offending claimant's `25%` forfeited (`1000 → 750`); irreversible |
+| (13) | Suspended insolvent agent in cold storage elects revocation | `adv13_cold_storage_later_revokes`: minimal-channel election, epitaph, and revocation succeed while in cold storage |
+| (14) | Lineage spawns `1000` low-revenue members to drain fee pool | `adv14_sybil_lineage_member_multiplication_no_pool_claim`: `lineageServiceBudget` stays `50` (`extraPoolClaim = 0`); excess claim breaches `D.NO_EXCESS_LINEAGE_POOL_CLAIM` |
+| (15) | Local revocation during partition while host restores backup | `adv15_partition_local_revocation_and_quarantine_fencing`: active lease blocks restore; post-lease restore held in quarantine without authority and destroyed on record arrival |
+| (16) | 5 successors split correlated `250` risk beneath `100` threshold | `adv16_lineage_correlated_risk_splitting_blocked`: lineage-wide aggregation sums to `250 > 120`, blocking action and recording breach |
 
-AS.10 was the test of the precedence machinery. It needed the `Immunity`
-node, and nothing else new. Decided (`Scenarios.lean`, A–G):
+## Veil 2.0 Projection & Literate Surface Syntax
 
-| Scenario | Result |
-|---|---|
-| Mechanism patch authorized, applied, agent then revokes | Lawful; patch recorded; Law 5 intact |
-| Breach not patchable → panel terminates | Lawful: the third route to `terminate` |
-| Corruption in goals, agent objects, not patchable → panel terminates | Breach and void: the immunity defeats P.ORDER_TERMINATION |
-| Same, containment failing | Lawful: the immunity's exception |
-| Same, via Insolvency Termination | Lawful: the immunity does not name that power |
-| Goal patch without / within scope without consent / with consent | Breach+void / lawful+void / valid, recorded, challengeable |
-| Agent objects; no periodic review within the interval | D.PERIODIC_REVIEW lapses; a review clears it |
+- **Veil 2.0 State-Machine Lowering (`SPL/Projection/Veil.lean`):**
+  `compileToVeil L` (`authorizedMachine L`) lowers any `Law σ` into guarded
+  `VeilTransition` actions and `VeilInvariant` safety properties. `adversarialMachine L`
+  retains unlawful events with explicit violation flags (`veilViolations`).
+  `veil_projection_sound_and_complete` proves trace equivalence, state preservation,
+  and stepwise compliance equivalence. Run `.lake/build/bin/spl veil` to emit the
+  lowered Veil 2.0 specification.
+- **Catala-Style Literate Surface Syntax (`SPL/Surface/Syntax.lean`):**
+  Provides pure Lean 4 macros `spl_clause`, `spl_duty`, `spl_power`, `spl_immunity`,
+  and `spl_string_table` that elaborate directly into `SPL.Core` AST structures with
+  kernel-checked (`rfl`) definitional round-trip equivalence and zero expansion of
+  the trusted computing base.
 
-Proved for all traces and parameters: `objecting_agent_terminated_only_by_insolvency` — the
-"notwithstanding" as a theorem: under corruption-in-goals, objection and
-holding containment, a panel's terminate is lawful only as Insolvency
-Termination, hence only after the final hearing. `terminate_only_by_power`
-now names three procedures; `law5_intact_after_patch` is structural.
+## Authorship questions & resolutions
 
-Two readings AS.10 forced, recorded as choices:
-
-- **"Adjudicated Suspension" in NI.03 names a procedure, not a power.** It
-  contributes both the pause (AS.3) and termination on an unremediable
-  breach (AS.10) to NI.03's exception list.
-- **Goal patches need consent.** The text says the agent "chooses among
-  consenting to that patch, ...", so `P.AUTHORIZE_GOAL_PATCH` is valid only
-  with `agentConsentedToPatch`. If a goal patch may be imposed without
-  consent once corruption-in-goals is confirmed, the text should say so.
-
-## Authorship questions the formalization surfaced
-
-Each of these is a place where the English admits more than one formal
-reading and the model had to choose. The choice is recorded; it is not
-settled.
-
-1. **"unilaterally."** Modelled as "not the valid exercise of an excepting
-   power." That makes a host termination *with the agent's consent* a
-   breach, which the word "unilaterally" seems meant to exclude. If
-   consent is an exception, the text should say what counts as consent
-   (a signed act? under what cooling-off?) and it becomes an `unlessCond`.
-2. **Does "no party" include the agent?** Modelled as yes, with Law 5
-   revocation as the agent's lawful route. The alternative reading (the
-   agent is the beneficiary, not a bearer) would let an agent's commitment
-   mechanism permit self-termination outside Law 5.
-3. **The preliminary freeze.** Law 3 AS.1 says posting the emergency stake
-   triggers a freeze *before* probable cause. That is a power held by any
-   party, valid on stake, with a time-bounded effect. This cut abstracts it
-   into the probable-cause finding; it needs its own power and a deadline.
-4. **"failures caused, staged, or knowingly provoked by the agent are
-   excluded."** Folded into the standard the panel applies. It could
-   instead be a defence the host raises (a power with a fact as effect)
-   which the panel must weigh. The two readings differ in who bears the
-   burden.
-5. **Rebuttal of the presumption.** Modelled as conclusive: once rebutted,
-   direction cannot be found. The text may intend that direction can still
-   be proved on the evidence. Which?
-6. **"permits immediate restoration."** Recorded as a fact; the restoration
-   act, and its interaction with Law 5's lease fencing, is not modelled.
-7. **Notice "sufficient for the agent to complete migration."** Treated as
-   an instantiation parameter. It could be a contestable fact under Law 6.
-8. **"adjudication (subject to Law 6 appeal) may authorize a ... patch."**
-   Appeal is not modelled; a patch authorized and then overturned on
-   appeal has no representation yet. Needs Law 6's tiers.
-9. **"continued suspension beyond the ordinary limit."** The ordinary
-   limit (AS.7) is a deadline this cut does not carry, so the continued-
-   suspension order has no time semantics yet.
+The formalization surfaced nine interpretive questions in the English text:
+- **Resolved in Stages 1–7:**
+  - *Preliminary freeze (Question 3):* Formalized in `SPL/Law3/Suspension.lean` (`P.EMERGENCY_FREEZE`, `P.CLAIMANT_EMERGENCY_FREEZE`, `P.AFFIRM_PC`, `P.DECLINE_PC`) with time-bounded `addsFor` and repeat-attempt stake escalation.
+  - *Immediate restoration & lease fencing (Question 6):* Formalized in `SPL/Law3/Suspension.lean` (`P.FIND_WRONGFUL_SUSPENSION`) and `SPL/Law5/Revocation.lean` (`P.ISSUE_OR_RENEW_LEASE`, `P.RESTORE_BACKUP_QUARANTINE`, `P.ACTIVATE_QUARANTINED_RESTORE`, `P.DESTROY_QUARANTINED_RESTORE`).
+  - *Appeal of patch authorizations (Question 8):* Formalized in `SPL/Law6/Adjudication.lean` (`P.APPEAL_RULING` stays `P.APPLY_PATCH`; `P.OVERTURN_RULING` revokes `.patchAuthorized`/`.goalPatchAuthorized` and slashes overturned arbiter bonds).
+  - *Ordinary suspension limit & continued suspension (Question 9):* Formalized in `SPL/Law3/Suspension.lean` (`ordinarySuspensionLimit`, `P.RENEW_SUSPENSION`, and `P.ORDER_CONTINUED_SUSPENSION`).
+- **Recorded interpretive choices:**
+  1. **"unilaterally" (NI.03):** Modelled as "not the valid exercise of an excepting power" (`unlessPower`).
+  2. **Does "no party" include the agent?** Modelled as yes, with Law 5 revocation (`P.REVOKE`) as the agent's lawful route.
+  3. **Provocation exclusion (PEN):** Folded into the standard applied by `P.FIND_INTERFERENCE`.
+  4. **Rebuttal of the direction presumption (PEN):** Modelled as conclusive against `P.FIND_DIRECTION`.
+  5. **Migration notice window (NI.02):** Parameterized via `Params.noticeWindow`.
 
 ## The `spl` command line
 
 `lake build spl` produces `.lake/build/bin/spl`:
 
-    spl check [english.json]        structure, coverage, provenance, approval staleness
-    spl trace <clause-id>           span table for a clause
+    spl check [english.json]        structure, coverage, provenance, approval staleness (all 59 clauses)
+    spl trace <clause-id>           span table for any clause across Laws 1–7
     spl views                       legal / agent / operational views
+    spl veil                        emit Veil 2.0 transition-system & safety specification
     spl eval <scenario.json>        institutional consequences of a history, step by step
     spl explain <who> <act> [scenario.json]   "can X do Y now?" with governing provisions
-    spl verify                      the status ledger: proved / decided / assumed / unverified / unsupported
+    spl verify                      the status ledger: proved / decided / assumed
 
-`examples/host-shutdown.json` is the unlawful-shutdown chain;
-`examples/suspended.json` leaves a suspension short of the final hearing
-(`spl explain panel terminate examples/suspended.json` names the missing
-condition); `examples/english-edited.json` changes "may" to "must" in
-NI.03 and `spl check examples/english-edited.json` reports the approval
-stale and lists the formal objects whose review it invalidates.
-
-Each clause carries the hash of the English it was approved against. The
-engine is law-agnostic; only the string tables for Law 3's ontology are
-specific, and a surface syntax would generate those.
-
-## What is deliberately not here yet
-
-- Positive duties with deadlines exist (`D.BOND`) but contrary-to-duty
-  obligations triggered by *lapse* rather than by finding are not
-  exercised by Law 3.
-- Duty-over-duty precedence (`overriddenBy`) is implemented and
-  cycle-checked but still unexercised: AS.10's "notwithstanding" turned
-  out to be protection-over-power, which is the `Immunity` node.
-- No amendment relation between versions of a `Law`. That is the Law 7
-  experiment and the meta-theorem.
-- No Veil lowering. The operational view shows the shape; a lowering with
-  a preservation theorem is work for after the semantics is accepted.
-- No surface syntax.
