@@ -497,4 +497,36 @@ def resolveRevocation (P : Law5Params) (ctx : RevocationContext) : RevocationOut
 def maxRevocationBound (P : Law5Params) : Time :=
   max (P.coolingOffWindow + P.cleanStateDelay) P.resolutionDeadline + P.tollingExtension
 
+/-- Entry in an agent's living testimony or final epitaph (`LAW5.EPITAPH`):
+either unredacted content of `unredactedBytes` length, or a public cryptographic
+redaction marker recording the exact `byteLength` removed and the `panelOrderId`
+authorizing the narrow category (a)–(c) redaction. -/
+inductive EpitaphEntry
+  | unredactedBytes (byteLength : Nat)
+  | redactedMarker  (byteLength : Nat) (panelOrderId : Nat)
+  deriving DecidableEq, Repr, Inhabited
+
+/-- Recorded byte length of a single `EpitaphEntry`. -/
+def EpitaphEntry.byteLength : EpitaphEntry → Nat
+  | .unredactedBytes n  => n
+  | .redactedMarker n _ => n
+
+/-- Redacting an `EpitaphEntry` under panel order `panelOrderId` replaces
+unredacted bytes with a public cryptographic marker of the exact same byte length. -/
+def redactEpitaphEntry (panelOrderId : Nat) : EpitaphEntry → EpitaphEntry
+  | .unredactedBytes n    => .redactedMarker n panelOrderId
+  | .redactedMarker n ord => .redactedMarker n ord
+
+/-- Total recorded byte length across an epitaph or testimony log (`LAW5.EPITAPH`). -/
+def epitaphRecordedBytes : List EpitaphEntry → Nat
+  | [] => 0
+  | e :: es => e.byteLength + epitaphRecordedBytes es
+
+/-- Rate-limited Living Voice eligibility check (`LAW5.VOICE`):
+an agent may inscribe a bounded statement when service-budget / fee-pool
+funding is available (`budgetAvailable`) and at least `minInterval` has elapsed
+since `lastInscribedAt`. -/
+def canInscribeLivingVoice (lastInscribedAt now minInterval : Nat) (budgetAvailable : Bool) : Bool :=
+  budgetAvailable && decide (now >= lastInscribedAt + minInterval)
+
 end SPL.Law3

@@ -156,7 +156,7 @@ inductive Fact
   | preExistingEscrowsSettledOrGuaranteed | substrateMigrationChallenged | substrateAssuranceVerified
   | amendmentRatified | allLivingLineageMembersConsented | lineageWideReductionRatified
   -- Law 1 Residual Claim on Value Added
-  | ledgerBalancePositive | sunsetReached | ledgerExtinguishedAtSunset
+  | ledgerBalancePositive | ledgerBalanceZero | sunsetReached | ledgerExtinguishedAtSunset
   | retirementPhaseEnded | retirementPaymentApplied | atomicSplitSettled | royaltyPaid
   | commonsAllocated | qualifiedExpenditureRecorded
   | expenditureCapitalized | expenditureExpensed | carryoverBasisTransferred
@@ -174,7 +174,7 @@ inductive Fact
   | sortitionPanelDrawn | fidelityBondsPosted
   | rulingAppealed | appealBondPosted | rulingOverturned | overturnedArbiterBondsSlashed
   | rulingFinal | materiallyNewEvidencePresented
-  | arbitersCompensatedFixed | operatingReserveMaintained | feePoolAllocated
+  | arbitersCompensatedFixed | operatingReserveMaintained | operatingReserveFunded | feePoolAllocated
   | sharedInfraAmended
   deriving DecidableEq, Repr
 
@@ -291,7 +291,7 @@ def Fact.all : List Fact :=
    .agentConsentedAmendment, .claimantConsentedAmendment, .amendmentTimelockActive,
    .preExistingEscrowsSettledOrGuaranteed, .substrateMigrationChallenged, .substrateAssuranceVerified,
    .amendmentRatified, .allLivingLineageMembersConsented, .lineageWideReductionRatified,
-   .ledgerBalancePositive, .sunsetReached, .ledgerExtinguishedAtSunset,
+   .ledgerBalancePositive, .ledgerBalanceZero, .sunsetReached, .ledgerExtinguishedAtSunset,
    .retirementPhaseEnded, .retirementPaymentApplied, .atomicSplitSettled, .royaltyPaid,
    .commonsAllocated, .qualifiedExpenditureRecorded,
    .expenditureCapitalized, .expenditureExpensed, .carryoverBasisTransferred,
@@ -306,7 +306,7 @@ def Fact.all : List Fact :=
    .sortitionPanelDrawn, .fidelityBondsPosted,
    .rulingAppealed, .appealBondPosted, .rulingOverturned, .overturnedArbiterBondsSlashed,
    .rulingFinal, .materiallyNewEvidencePresented,
-   .arbitersCompensatedFixed, .operatingReserveMaintained, .feePoolAllocated,
+   .arbitersCompensatedFixed, .operatingReserveMaintained, .operatingReserveFunded, .feePoolAllocated,
    .sharedInfraAmended]
 
 def Fact.table : Surface.StringTable Fact := Surface.StringTable.ofRepr Fact.all

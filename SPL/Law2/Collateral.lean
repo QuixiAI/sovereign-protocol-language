@@ -100,6 +100,31 @@ def settleWrongfulSuspensionDamages (stake actualDamages delayDamages initiatorA
   let unpaidEnforceableDeficit := totalDamages - totalCollectedNow
   (assuredFromStake, totalCollectedNow, unpaidEnforceableDeficit)
 
+/-- Individual rolling-exposure stake commitment (`LAW2.EXPOSURE`):
+an action of plausible external loss `amount` started at `startedAt`
+immobilizes stake for an observation window of duration `windowDuration`. -/
+structure ExposureCommitment where
+  amount         : Nat
+  startedAt      : Nat
+  windowDuration : Nat
+  deriving DecidableEq, Repr, Inhabited
+
+/-- Active exposure contributed at timestamp `now` by commitment `c` (`0` once
+the observation window `c.startedAt + c.windowDuration` has expired). -/
+def ExposureCommitment.activeAmountAt (now : Nat) (c : ExposureCommitment) : Nat :=
+  if now ≤ c.startedAt + c.windowDuration then c.amount else 0
+
+/-- Cumulative active rolling exposure at timestamp `now` across a list of
+exposure commitments (`LAW2.EXPOSURE`). -/
+def activeRollingExposureAt (now : Nat) : List ExposureCommitment → Nat
+  | [] => 0
+  | c :: cs => c.activeAmountAt now + activeRollingExposureAt now cs
+
+/-- Harm-scaled observation window (`LAW2.EXPOSURE`) scaling with domain risk
+and irreversibility multipliers. -/
+def observationWindow (baseWindow domainMultiplier irreversibilityMultiplier : Nat) : Nat :=
+  baseWindow * max 1 domainMultiplier * max 1 irreversibilityMultiplier
+
 /-! ## Provenance Clauses for Law 2 -/
 
 def clauseLAW2_EXPOSURE : Clause :=

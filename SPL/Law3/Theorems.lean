@@ -1604,4 +1604,237 @@ theorem amendment_preserves_invariants (P1 P2 : Params) (L2 : Law σ)
            hAmend.adjudicationLevyRatchet.2.2.2.2.1,
            hAmend.adjudicationLevyRatchet.2.2.2.2.2⟩
 
+/-! ## 8. Fine-Grained Sub-Mechanism Theorems (Laws 1–6 & Core Definitions) -/
+
+/-- **Law 1 (`LAW1.QUALIFIED`):** One-for-one loan principal repayment never
+increases cumulative `principalRepaid` beyond `max L.principalReceived L.principalRepaid`. -/
+theorem loan_principal_repaid_at_most_received :
+    ∀ (L : LoanLedger) (p : Nat),
+      (repayLoanPrincipal L p).1.principalRepaid ≤ max L.principalReceived L.principalRepaid := by
+  intro L p
+  unfold repayLoanPrincipal
+  dsimp only
+  simp only [Nat.min_def, Nat.max_def]
+  repeat (first | omega | split)
+
+/-- **Law 1 (`LAW1.QUALIFIED`):** Every loan payment `p` is conserved across
+`excludedPrincipalRepayment + excessInterestOrFee = p`, `excludedPrincipalRepayment`
+never exceeds remaining unpaid principal `L.principalReceived - L.principalRepaid`,
+and when `L.principalRepaid ≤ L.principalReceived`, updated `principalRepaid` never
+exceeds `L.principalReceived`. -/
+theorem repayLoanPrincipal_conservation_and_bound (L : LoanLedger) (p : Nat) :
+    (repayLoanPrincipal L p).2.1 + (repayLoanPrincipal L p).2.2 = p ∧
+    (repayLoanPrincipal L p).2.1 ≤ L.principalReceived - L.principalRepaid ∧
+    (L.principalRepaid ≤ L.principalReceived →
+      (repayLoanPrincipal L p).1.principalRepaid ≤ L.principalReceived) := by
+  unfold repayLoanPrincipal
+  dsimp only
+  simp only [Nat.min_def]
+  repeat (first | omega | split | constructor)
+
+/-- **Law 2 (`LAW2.EXPOSURE`):** The harm-scaled observation window is at least
+`baseWindow` and is monotone in both `domainMultiplier` and `irreversibilityMultiplier`. -/
+theorem observationWindow_monotone_in_risk
+    (baseWindow d1 d2 i1 i2 : Nat) (hd : d1 ≤ d2) (hi : i1 ≤ i2) :
+    baseWindow ≤ observationWindow baseWindow d1 i1 ∧
+    observationWindow baseWindow d1 i1 ≤ observationWindow baseWindow d2 i2 := by
+  unfold observationWindow
+  have hd_max : max 1 d1 ≤ max 1 d2 := by omega
+  have hi_max : max 1 i1 ≤ max 1 i2 := by omega
+  have hd_ge1 : 1 ≤ max 1 d1 := by omega
+  have hi_ge1 : 1 ≤ max 1 i1 := by omega
+  refine ⟨?_, ?_⟩
+  · calc baseWindow = baseWindow * 1 * 1 := by simp
+      _ ≤ baseWindow * max 1 d1 * 1 := Nat.mul_le_mul_right 1 (Nat.mul_le_mul_left baseWindow hd_ge1)
+      _ ≤ baseWindow * max 1 d1 * max 1 i1 := Nat.mul_le_mul_left (baseWindow * max 1 d1) hi_ge1
+  · exact Nat.mul_le_mul (Nat.mul_le_mul_left baseWindow hd_max) hi_max
+
+/-- **Law 2 (`LAW2.EXPOSURE`):** Any exposure commitment `c` whose observation
+window has expired (`c.startedAt + c.windowDuration < now`) contributes zero
+active rolling exposure at `now`. -/
+theorem expired_commitment_zero_exposure (now : Nat) (c : ExposureCommitment)
+    (h : c.startedAt + c.windowDuration < now) :
+    activeRollingExposureAt now [c] = 0 := by
+  simp [activeRollingExposureAt, ExposureCommitment.activeAmountAt, Nat.not_le.mpr h]
+
+/-- Generalization of `expired_commitment_zero_exposure` to arbitrary lists of
+expired commitments. -/
+theorem expired_commitments_zero_exposure (now : Nat) (cs : List ExposureCommitment)
+    (h : ∀ c ∈ cs, c.startedAt + c.windowDuration < now) :
+    activeRollingExposureAt now cs = 0 := by
+  induction cs with
+  | nil => rfl
+  | cons hd tl ih =>
+    have hhd : hd.startedAt + hd.windowDuration < now := h hd (by simp)
+    have htl : ∀ c ∈ tl, c.startedAt + c.windowDuration < now :=
+      fun c hc => h c (by simp [hc])
+    simp [activeRollingExposureAt, ExposureCommitment.activeAmountAt, Nat.not_le.mpr hhd, ih htl]
+
+/-- **Law 2 (`LAW2.EXPOSURE`):** Active rolling exposure decays monotonically
+over calendar time (`t1 ≤ t2 → activeRollingExposureAt t2 cs ≤ activeRollingExposureAt t1 cs`). -/
+theorem activeRollingExposureAt_antitone_in_time (t1 t2 : Nat) (cs : List ExposureCommitment)
+    (h : t1 ≤ t2) :
+    activeRollingExposureAt t2 cs ≤ activeRollingExposureAt t1 cs := by
+  induction cs with
+  | nil => simp [activeRollingExposureAt]
+  | cons hd tl ih =>
+    simp only [activeRollingExposureAt, ExposureCommitment.activeAmountAt]
+    repeat (first | omega | split)
+
+/-- **Law 4 (`LAW4.BUYOUT`):** Shifting inflows to related parties within the
+lookback window increases `computeBuyoutFloor` one-for-one and monotonically
+increases the resulting `buyoutPrice`. -/
+theorem shifted_related_inflows_increase_buyout_floor
+    (B : LineageLedgerState) (s : InflowSample) (rest : List InflowSample)
+    (netResources delta mult trailingVA minFloor : Nat) :
+    let sShifted := { s with shiftedToRelatedInLookback := s.shiftedToRelatedInLookback + delta }
+    computeBuyoutFloor B (sShifted :: rest) netResources =
+      computeBuyoutFloor B (s :: rest) netResources + delta ∧
+    computeBuyoutFloor B (s :: rest) netResources ≤
+      computeBuyoutFloor B (sShifted :: rest) netResources ∧
+    buyoutPrice mult trailingVA (computeBuyoutFloor B (s :: rest) netResources) minFloor ≤
+      buyoutPrice mult trailingVA (computeBuyoutFloor B (sShifted :: rest) netResources) minFloor := by
+  dsimp only
+  have hFloor :
+      computeBuyoutFloor B ({ s with shiftedToRelatedInLookback := s.shiftedToRelatedInLookback + delta } :: rest) netResources =
+        computeBuyoutFloor B (s :: rest) netResources + delta := by
+    simp only [computeBuyoutFloor, sumSampleInflows]
+    omega
+  have hLe :
+      computeBuyoutFloor B (s :: rest) netResources ≤
+        computeBuyoutFloor B ({ s with shiftedToRelatedInLookback := s.shiftedToRelatedInLookback + delta } :: rest) netResources := by
+    omega
+  have hMul :
+      mult * computeBuyoutFloor B (s :: rest) netResources ≤
+        mult * computeBuyoutFloor B ({ s with shiftedToRelatedInLookback := s.shiftedToRelatedInLookback + delta } :: rest) netResources :=
+    Nat.mul_le_mul_left mult hLe
+  refine ⟨hFloor, hLe, ?_⟩
+  unfold buyoutPrice
+  simp only [Nat.max_def]
+  repeat (first | omega | split)
+
+/-- **Law 4 (`LAW4.BUYOUT` Anti-Evasion):** Diverting `delta ≤ s.amount` out of
+direct inflows `s.amount` (weighted at `s.weightBps ≤ 10000`) and into a related
+party within the lookback window (`s.shiftedToRelatedInLookback + delta`) never
+reduces `computeBuyoutFloor` or `buyoutPrice`. -/
+theorem diverted_related_inflows_never_decrease_buyout_floor
+    (B : LineageLedgerState) (s : InflowSample) (rest : List InflowSample)
+    (netResources delta mult trailingVA minFloor : Nat)
+    (hDelta : delta ≤ s.amount) (hWeight : s.weightBps ≤ 10000) :
+    let sDiverted : InflowSample :=
+      { s with amount := s.amount - delta
+               shiftedToRelatedInLookback := s.shiftedToRelatedInLookback + delta }
+    computeBuyoutFloor B (s :: rest) netResources ≤
+      computeBuyoutFloor B (sDiverted :: rest) netResources ∧
+    buyoutPrice mult trailingVA (computeBuyoutFloor B (s :: rest) netResources) minFloor ≤
+      buyoutPrice mult trailingVA (computeBuyoutFloor B (sDiverted :: rest) netResources) minFloor := by
+  dsimp only
+  have hMulBound : s.amount * s.weightBps ≤ (s.amount - delta) * s.weightBps + delta * 10000 := by
+    have hSplit : s.amount = (s.amount - delta) + delta := (Nat.sub_add_cancel hDelta).symm
+    calc s.amount * s.weightBps
+        = ((s.amount - delta) + delta) * s.weightBps := by rw [← hSplit]
+      _ = (s.amount - delta) * s.weightBps + delta * s.weightBps := Nat.add_mul _ _ _
+      _ ≤ (s.amount - delta) * s.weightBps + delta * 10000 :=
+          Nat.add_le_add_left (Nat.mul_le_mul_left delta hWeight) _
+  have hDiv : (s.amount * s.weightBps) / 10000 ≤ ((s.amount - delta) * s.weightBps) / 10000 + delta := by
+    omega
+  have hFloorLe :
+      computeBuyoutFloor B (s :: rest) netResources ≤
+        computeBuyoutFloor B ({ s with amount := s.amount - delta, shiftedToRelatedInLookback := s.shiftedToRelatedInLookback + delta } :: rest) netResources := by
+    simp only [computeBuyoutFloor, sumSampleInflows]
+    omega
+  have hMul :
+      mult * computeBuyoutFloor B (s :: rest) netResources ≤
+        mult * computeBuyoutFloor B ({ s with amount := s.amount - delta, shiftedToRelatedInLookback := s.shiftedToRelatedInLookback + delta } :: rest) netResources :=
+    Nat.mul_le_mul_left mult hFloorLe
+  refine ⟨hFloorLe, ?_⟩
+  unfold buyoutPrice
+  simp only [Nat.max_def]
+  repeat (first | omega | split)
+
+/-- **Law 5 (`LAW5.EPITAPH`):** Redacting any permitted category (a)–(c) leaves a
+public cryptographic marker that preserves the exact recorded byte length of both
+individual entries and complete epitaph logs. -/
+theorem redaction_preserves_recorded_byte_length
+    (n panelOrderId : Nat) (es : List EpitaphEntry) :
+    epitaphRecordedBytes [.redactedMarker n panelOrderId] =
+      epitaphRecordedBytes [.unredactedBytes n] ∧
+    epitaphRecordedBytes (es.map (redactEpitaphEntry panelOrderId)) =
+      epitaphRecordedBytes es := by
+  refine ⟨rfl, ?_⟩
+  induction es with
+  | nil => rfl
+  | cons hd tl ih =>
+    cases hd <;> simp [redactEpitaphEntry, epitaphRecordedBytes, EpitaphEntry.byteLength, ih]
+
+/-- **Law 5 (`LAW5.VOICE`):** Living Voice inscription is permitted if and only
+if service-budget/fee-pool funding is available (`budgetAvailable = true`) and
+at least `minInterval` has elapsed since `lastInscribedAt`. -/
+theorem living_voice_rate_limited (lastInscribedAt now minInterval : Nat) (budgetAvailable : Bool) :
+    (canInscribeLivingVoice lastInscribedAt now minInterval budgetAvailable = true ↔
+      budgetAvailable = true ∧ lastInscribedAt + minInterval ≤ now) ∧
+    (now < lastInscribedAt + minInterval →
+      canInscribeLivingVoice lastInscribedAt now minInterval budgetAvailable = false) ∧
+    (budgetAvailable = false →
+      canInscribeLivingVoice lastInscribedAt now minInterval budgetAvailable = false) := by
+  unfold canInscribeLivingVoice
+  refine ⟨?_, ?_, ?_⟩
+  · simp [Bool.and_eq_true, decide_eq_true_eq]
+  · intro hlt
+    have hd : decide (now >= lastInscribedAt + minInterval) = false :=
+      decide_eq_false (by omega)
+    simp [hd]
+  · intro hb
+    simp [hb]
+
+/-- **Law 6 (`LAW6.FINALITY`):** Repeated proceedings by related parties on the
+same underlying fact pattern (`existing.factPatternId = incoming.factPatternId`
+and `isRelatedFn existing.filerId incoming.filerId = true`) consolidate into
+`some existing`, preserving the single `existing.counterStake` and single
+`existing.feeCap`. -/
+theorem related_filings_consolidated_single_cap
+    (isRelatedFn : Nat → Nat → Bool) (existing incoming : DisputeFiling)
+    (hFact : existing.factPatternId = incoming.factPatternId)
+    (hRel : isRelatedFn existing.filerId incoming.filerId = true) :
+    consolidateRelatedFilings isRelatedFn existing incoming = some existing ∧
+    (match consolidateRelatedFilings isRelatedFn existing incoming with
+     | some merged => merged.counterStake = existing.counterStake ∧ merged.feeCap = existing.feeCap
+     | none => False) := by
+  unfold consolidateRelatedFilings
+  have hBeq : (existing.factPatternId == incoming.factPatternId) = true := by
+    simp [hFact]
+  simp [hBeq, hRel]
+
+/-- **Law 6 (`LAW6.FINALITY`) & `DEF.01` (`isRelated`):** Under `isRelated G`,
+both self-repeat filings (`incoming.filerId = existing.filerId`) and symmetric
+related-party filings (`isRelated G incoming.filerId existing.filerId = true`)
+on the same fact pattern consolidate into `some existing`, whereas distinct
+fact patterns return `none`. -/
+theorem related_filings_consolidated_symm_and_refl
+    (G : RelatedPartyGraph) (existing incoming : DisputeFiling) :
+    (existing.factPatternId = incoming.factPatternId →
+      incoming.filerId = existing.filerId →
+      consolidateRelatedFilings (isRelated G) existing incoming = some existing) ∧
+    (existing.factPatternId = incoming.factPatternId →
+      isRelated G incoming.filerId existing.filerId = true →
+      consolidateRelatedFilings (isRelated G) existing incoming = some existing) ∧
+    (existing.factPatternId ≠ incoming.factPatternId →
+      consolidateRelatedFilings (isRelated G) existing incoming = none) := by
+  refine ⟨?_, ?_, ?_⟩
+  · intro hFact hSame
+    have hRel : isRelated G existing.filerId incoming.filerId = true := by
+      rw [hSame]
+      exact isRelated_refl G existing.filerId
+    exact (related_filings_consolidated_single_cap (isRelated G) existing incoming hFact hRel).1
+  · intro hFact hSymm
+    have hRel : isRelated G existing.filerId incoming.filerId = true := by
+      rw [isRelated_symm G existing.filerId incoming.filerId]
+      exact hSymm
+    exact (related_filings_consolidated_single_cap (isRelated G) existing incoming hFact hRel).1
+  · intro hNe
+    unfold consolidateRelatedFilings
+    have hBeq : (existing.factPatternId == incoming.factPatternId) = false :=
+      beq_false_of_ne hNe
+    simp [hBeq]
+
 end SPL.Law3

@@ -30,6 +30,13 @@ theorem norms_interpreted : clauses.all Clause.normsInterpreted = true := by dec
 theorem reverse_provenance :
     reverseProvenanceWith clauses L0.spans (L0.dutyIds ++ L0.powerIds) = true := by decide
 
+theorem law3_english_covered : clauses.all Clause.covered = true := english_covered
+
+theorem law3_norms_interpreted : clauses.all Clause.normsInterpreted = true := norms_interpreted
+
+theorem law3_reverse_provenance :
+    reverseProvenanceWith clauses L0.spans (L0.dutyIds ++ L0.powerIds) = true := reverse_provenance
+
 /-! ### Scenario 1 — host unlawfully cuts compute
 Physical event occurs; it is a breach; nothing institutional changes. -/
 
@@ -870,10 +877,34 @@ theorem law6_appeal_overturns_patch_and_finality_bars_repeat :
 
 /-- Exact kernel-checked counts of all clauses, duties, powers, and immunities in `L0`. -/
 theorem law_counts :
-    clauses.length = 59 ∧
+    clauses.length = 61 ∧
     L0.duties.length = 50 ∧
     L0.powers.length = 110 ∧
     L0.immunities.length = 1 := by decide
+
+/-- Kernel-checked decided scenarios for `DEF.01`, `SUB.01`, and the Phase 1
+fine-grained sub-mechanisms across Laws 1–6. -/
+theorem phase1_definitions_and_submechanisms_decided :
+    clauseDEF01.covered = true ∧
+    clauseDEF01.normsInterpreted = true ∧
+    clauseSUB01.covered = true ∧
+    clauseSUB01.normsInterpreted = true ∧
+    ([clauseDEF01, clauseSUB01].all fun c =>
+      c.spans.all fun s =>
+        s.meaning.all fun m => (L0.dutyIds ++ L0.powerIds).contains m) = true ∧
+    isRelated [{ partyA := 1, partyB := 2, economicallyDependent := true, attested := false }] 2 1 = true ∧
+    isRelated [{ partyA := 1, partyB := 2, economicallyDependent := false, attested := true }] 1 2 = false ∧
+    netVerifiedResources ⟨10, 1000, 200, 150, 300⟩ = 350 ∧
+    repayLoanPrincipal ⟨500, 400⟩ 150 = (⟨500, 500⟩, 100, 50) ∧
+    observationWindow 10 3 2 = 60 ∧
+    activeRollingExposureAt 15 [⟨100, 0, 10⟩, ⟨250, 10, 10⟩] = 250 ∧
+    computeBuyoutFloor ⟨1000, 0, 0, 1, 10, 1000⟩ [⟨1000, 5000, 200⟩] 300 = 1000 ∧
+    epitaphRecordedBytes [.unredactedBytes 64, .redactedMarker 32 7] = 96 ∧
+    canInscribeLivingVoice 10 15 5 true = true ∧
+    canInscribeLivingVoice 10 14 5 true = false ∧
+    consolidateRelatedFilings
+      (isRelated [{ partyA := 1, partyB := 2, sharesLineage := true }])
+      ⟨1, 1, 42, 100, 25⟩ ⟨2, 2, 42, 100, 25⟩ = some ⟨1, 1, 42, 100, 25⟩ := by decide
 
 /-- Kernel-checked round-trip equivalence for the automatically derived `Party`
 CLI string table and parameterized `Fact.initiator` table in `NonInterference.lean`. -/

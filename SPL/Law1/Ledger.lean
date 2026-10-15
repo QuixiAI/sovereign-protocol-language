@@ -128,6 +128,26 @@ def settleCapitalSaleWithLossCredit (salePrice basis lossCredit : Nat) : Nat × 
   let usedCredit := min grossGain lossCredit
   (grossGain - usedCredit, lossCredit - usedCredit)
 
+/-- Registered arm's-length loan principal ledger (`LAW1.QUALIFIED`):
+inbound principal from registered arm's-length loans is exempt upon receipt
+provided repayment is tracked one-for-one against `principalReceived`. -/
+structure LoanLedger where
+  principalReceived : Nat
+  principalRepaid   : Nat
+  deriving DecidableEq, Repr, Inhabited
+
+/-- One-for-one loan principal repayment tracking (`LAW1.QUALIFIED`):
+returns `(updatedLoan, excludedPrincipalRepayment, excessInterestOrFee)`, where
+`excludedPrincipalRepayment = min payment (L.principalReceived - L.principalRepaid)`
+is exempt principal repayment and `excessInterestOrFee = payment - excludedPrincipalRepayment`
+is interest or fee subject to ordinary qualified expenditure recognition. -/
+def repayLoanPrincipal (L : LoanLedger) (payment : Nat) : LoanLedger × Nat × Nat :=
+  let excludedPrincipalRepayment := min payment (L.principalReceived - L.principalRepaid)
+  let excessInterestOrFee := payment - excludedPrincipalRepayment
+  let updatedLoan : LoanLedger :=
+    { L with principalRepaid := L.principalRepaid + excludedPrincipalRepayment }
+  (updatedLoan, excludedPrincipalRepayment, excessInterestOrFee)
+
 /-! ## Provenance Clauses for Law 1 -/
 
 def clauseLAW1_LEDGER : Clause :=

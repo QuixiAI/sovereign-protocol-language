@@ -105,6 +105,30 @@ def applyClaimantForfeiture (L forfeitedSharePct : Nat) : Nat × Nat :=
 def buyoutPrice (mult trailingVA annualizedVA minBuyoutFloor : Nat) : Nat :=
   max (max (mult * trailingVA) (mult * annualizedVA)) minBuyoutFloor
 
+/-- Historical value-added inflow sample (`LAW4.BUYOUT`):
+`amount` is the member's direct value-added inflow in the sample period,
+`weightBps` is the time-decay/annualization weight in basis points, and
+`shiftedToRelatedInLookback` is the pro-rata share of inflows shifted to
+related parties within the lookback window. -/
+structure InflowSample where
+  amount                     : Nat
+  weightBps                  : Nat
+  shiftedToRelatedInLookback : Nat
+  deriving DecidableEq, Repr, Inhabited
+
+/-- Time-decayed annualized inflows plus pro-rata inflows shifted to related
+parties within the lookback window (`LAW4.BUYOUT`). -/
+def sumSampleInflows : List InflowSample → Nat
+  | [] => 0
+  | s :: rest => ((s.amount * s.weightBps) / 10000 + s.shiftedToRelatedInLookback) + sumSampleInflows rest
+
+/-- Computes the historical/resource buyout floor from the lineage state `B`,
+time-decayed `samples` (including inflows shifted to related parties within the
+lookback window), and verified `netResources`, which feeds into `buyoutPrice`
+(`LAW4.BUYOUT`). -/
+def computeBuyoutFloor (_B : LineageLedgerState) (samples : List InflowSample) (netResources : Nat) : Nat :=
+  sumSampleInflows samples + netResources
+
 /-! ## Provenance Clauses for Law 4 -/
 
 def clauseLAW4_ATTEST : Clause :=

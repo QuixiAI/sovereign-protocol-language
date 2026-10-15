@@ -158,6 +158,28 @@ def validSharedInfraChange (instantiationLevyCap newLevy instantiationMinBudget 
   decide (newLevy ≤ instantiationLevyCap ∧ instantiationMinBudget ≤ newMinBudget) &&
     antiCaptureIntact && insolvencyUnbroadened && noSelfAffiliateAdmission
 
+/-- A dispute filing submitted to Law 6 adjudication (`LAW6.FINALITY`). -/
+structure DisputeFiling where
+  filingId      : Nat
+  filerId       : Nat
+  factPatternId : Nat
+  counterStake  : Nat
+  feeCap        : Nat
+  deriving DecidableEq, Repr, Inhabited
+
+/-- Consolidation of repeated proceedings by related parties on substantially
+similar grounds (`LAW6.FINALITY`): merges `incoming` into `existing` (keeping
+the single `existing.counterStake` and `existing.feeCap`) whenever
+`existing.factPatternId == incoming.factPatternId && isRelatedFn existing.filerId incoming.filerId`,
+and returns `none` when the filings cannot be consolidated. -/
+def consolidateRelatedFilings (isRelatedFn : Nat → Nat → Bool)
+    (existing : DisputeFiling) (incoming : DisputeFiling) : Option DisputeFiling :=
+  if (existing.factPatternId == incoming.factPatternId) &&
+     isRelatedFn existing.filerId incoming.filerId then
+    some existing
+  else
+    none
+
 /-! ## Provenance Clauses for Law 6 -/
 
 def clauseLAW6_SORTITION : Clause :=

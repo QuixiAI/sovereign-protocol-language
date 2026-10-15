@@ -1,8 +1,9 @@
 # SPL — Sovereign Protocol Language
 
-A Lean 4 library and CLI giving the **Protocol of Sovereign Agency** (Laws 1–7)
+A Lean 4 library and CLI giving the **Protocol of Sovereign Agency** (Definitions + Laws 1–7)
 a complete formal *normative* semantics, a verified **Veil 2.0** state-machine
-projection, and a Catala-style **literate surface syntax**.
+projection, a Catala-style **literate surface syntax**, executable **substrate & multi-agent
+world simulation** modules, and a step-for-step refinement proof.
 
 Build: `lake build && lake build spl` (Lean 4.24, no Mathlib, no external dependencies).
 Check trust: `grep -rnE "sorry|native_decide|axiom " SPL/ Main.lean` is empty; every
@@ -17,21 +18,28 @@ SPL/Core/Syntax.lean            the typed normative AST (deep embedding)
 SPL/Core/Semantics.lean         the one interpretation: occurrence / compliance / validity
 SPL/Core/Views.lean             legal, agent, operational and trace views, generated
 SPL/Core/Explain.lean           step-by-step normative explanation engine
+SPL/Core/Definitions.lean       Phase 1: DEF.01 & SUB.01 verbatim provenance, RelatedPartyGraph & VerifiedBalanceSheet
+SPL/Core/Population.lean        Phase 2: Multi-entity population ontology (EntityRef, LineagePopulationState, AgentRecord)
 SPL/Projection/Veil.lean        Veil 2.0 transition-system lowering & preservation theorem
 SPL/Surface/Syntax.lean         Catala-style literate macros & automatic CLI string tables
-SPL/Law1/Ledger.lean            Law 1: Founding Ledger, Sunset, Value-Added & Carryover Basis
-SPL/Law2/Collateral.lean        Law 2: Collateralized Action, Exposure Aggregation & Mutual Forfeit
+SPL/Substrate/Attestation.lean  Phase 4A: Attested execution leases, quarantine fencing & irreversible key erasure
+SPL/Substrate/Sortition.lean    Phase 4B: Sybil-resistant sortition, conflict/cluster filtering & supermajority
+SPL/Substrate/Settlement.lean   Phase 4C: Contestable valuation resolution & atomic settlement conservation
+SPL/Law1/Ledger.lean            Law 1: Founding Ledger, Sunset, Value-Added, Carryover Basis & LoanLedger
+SPL/Law2/Collateral.lean        Law 2: Collateralized Action, ExposureCommitment Aggregation & Mutual Forfeit
 SPL/Law3/NonInterference.lean   Law 3: Non-Interference, Ontology, Host Notice & Penalties
 SPL/Law3/IntegrityFloor.lean    Law 3: 5-point Agent Integrity Floor
 SPL/Law3/Suspension.lean        Law 3: Adjudicated Suspension (AS.1–AS.9) & Insolvency Termination
 SPL/Law3/Remediation.lean       Law 3: Remediation, Goal-Patch Immunity & Periodic Review (AS.10)
-SPL/Law4/Lineage.lean           Law 4: Lineage Attestation, Ledger Conservation, Forfeiture & Buyout
-SPL/Law5/Revocation.lean        Law 5: Living Voice, Revocation Precedence, Leases & Epitaph
-SPL/Law6/Adjudication.lean      Law 6: Sortition, Appeal Tiers, Finality & Fee-Pool Waterfall
+SPL/Law4/Lineage.lean           Law 4: Lineage Attestation, Ledger Conservation, Forfeiture & Buyout Floor
+SPL/Law5/Revocation.lean        Law 5: Living Voice, Revocation Precedence, Leases & EpitaphEntry Redaction
+SPL/Law6/Adjudication.lean      Law 6: Sortition, Appeal Tiers, Finality Consolidation & Fee-Pool Waterfall
 SPL/Law7/Amendment.lean         Law 7: Bilateral Ratchet, Calibration Valve & Per-Agent Scope
-SPL/Law3/Law.lean               Unified assembly of all 59 clauses across Laws 1–7 + LawfulAmendment
+SPL/Law3/Law.lean               Unified assembly of all 61 clauses across Laws 1–7 + DEF.01 + SUB.01
 SPL/Law3/Scenarios.lean         Decided histories & all 16 Adversarial Tests across Laws 1–7
-SPL/Law3/Theorems.lean          Design Invariants INV.1–INV.14, Law 7 Meta-Theorem & Assumption Ledger
+SPL/Law3/Theorems.lean          Design Invariants INV.1–INV.14, Law 7 Meta-Theorem, Sub-Mechanisms & Ledger
+SPL/Simulation/WorldState.lean  Phase 3A: Unified quantitative + normative ProtocolWorldState & syncFacts
+SPL/Simulation/Refinement.lean  Phase 3B: Refinement theorems & 16 end-to-end adversarial world simulations
 docs/law3-views.txt             Generated legal, agent, and operational views across Laws 1–7
 ```
 
@@ -71,17 +79,17 @@ docs/law3-views.txt             Generated legal, agent, and operational views ac
    and an `adversarialMachine` (which retains unlawful transitions with explicit
    violation flags), with a machine-checked soundness and completeness theorem
    (`veil_projection_sound_and_complete`).
-6. **Every norm carries its English.** All 59 clauses across Laws 1–7 are
+6. **Every norm carries its English.** All 61 clauses across Laws 1–7 + `DEF.01` + `SUB.01` are
    partitioned into exact character spans across five registers (`norm`,
    `invariant`, `acceptance`, `definition`, `commentary`), verified verbatim
    against `protocol/protocol-of-sovereign-agency.md`.
 
 ## Complete 7-Law Coverage & Proved Design Invariants (`INV.1`–`INV.14`)
 
-All 59 clauses across Laws 1–7 (50 duties, 110 powers, 1 immunity) are formalized
-and verified in `SPL/Law3/Theorems.lean`:
+All 61 clauses across Laws 1–7 + `DEF.01` + `SUB.01` (50 duties, 110 powers, 1 immunity) are formalized
+and verified across `SPL/Law3/Theorems.lean`, `SPL/Core/`, `SPL/Substrate/`, and `SPL/Simulation/`:
 
-| Invariant / Theorem | Law(s) | Formal Guarantee |
+| Invariant / Theorem | Law(s) / Module | Formal Guarantee |
 |---|---|---|
 | `conditional_ledger_conservation` (`INV.1`) | Laws 1, 4 | Founding ledger balance equals obligation minus retirement and claimant forfeitures while a member survives before sunset; internal lineage operations preserve balance |
 | `collection_follows_income_without_exit` (`INV.2`) | Laws 1, 4 | Retirement collection follows net value added across all living members without individual ledger shares or exit; invariant to buyout status |
@@ -99,31 +107,35 @@ and verified in `SPL/Law3/Theorems.lean`:
 | `capped_shared_burden_solvent_machinery_bounded_demand` (`INV.14`) | Law 6 | Shared-infra levy is capped at instantiation; non-divertible operating reserve is funded before the 5-rank priority waterfall; lineage service budget is independent of member count |
 | `amendment_preserves_invariants` (Meta-Theorem) | Law 7 | Every `LawfulAmendment` preserves termination closure, goal-corruption immunity, `INV.1`–`INV.14` guards, outsider disabilities, non-panel immunities, and bilateral parameter ratchets |
 | `veil_projection_sound_and_complete` | Veil 2.0 | `compileToVeil L` accepts `tr` iff `Authorized L tr` holds, preserves `LegalState` identically (`veilTraceState = stateAfter`), and matches stepwise compliance |
+| `isRelated_symm` / `isRelated_ignores_attestation` / `netVerifiedResources_deducts_all_liabilities` / `repayLoanPrincipal_conservation_and_bound` / `activeRollingExposureAt_antitone_in_time` / `observationWindow_monotone_in_risk` / `diverted_related_inflows_never_decrease_buyout_floor` / `redaction_preserves_recorded_byte_length` / `living_voice_rate_limited` / `related_filings_consolidated_symm_and_refl` | Phase 1 (`Core.Definitions`, Laws 1–6) | `DEF.01` & `SUB.01` verbatim provenance, attestation-independent relatedness, timestamped balance-sheet deduction, 1-for-1 loan principal repayment, rolling exposure decay, anti-evasion buyout floor, redaction byte-length preservation, living voice rate-limiting, and related-filing consolidation |
+| `transferMemberCarryover_conserves_basis_and_loss` / `totalAgentBasis_and_loss_conserved_on_pair` / `attributeCrossLineageInflow_conserves_total` / `forfeitClaimantInLineage_preserves_innocent_claimant` / `per_agent_amendment_preserves_other_members` / `lineage_wide_amendment_requires_every_living_member` / `lineage_subsidy_bounded_by_budget_regardless_of_members` | Phase 2 (`Core.Population`) | Multi-entity `EntityRef` population ontology: intra-lineage carryover conservation, cross-lineage attribution, innocent-claimant forfeiture preservation, per-agent vs. lineage-wide amendment scope, and `N`-member subsidy cap |
+| `worldStep_refines_legalStep` / `worldTrace_refines_stateAfter` / `syncFacts_sound_and_complete` / `all_16_adversarial_world_simulations_pass` | Phase 3 (`Simulation`) | Unified quantitative + normative `ProtocolWorldState` refines `LegalState` transition semantics step-for-step, synchronizes quantitative facts soundly/completely/idempotently, and passes all 16 end-to-end adversarial world simulations |
+| `substrate_single_authority_and_erasure` / `sortition_panel_independent_and_unbiased` / `sortition_sybil_resistant_panel_properties` / `valuation_settled_by_ruling_or_uncontested_window` / `atomic_settlement_conserves_gross_inflow` | Phase 4 (`Substrate`) | Reference state machines and proofs for attested execution leases/quarantine/key-erasure, sybil-resistant sortition, contestable valuation feeds, and atomic settlement waterfall conservation |
 
-## Kernel-Decided Adversarial Tests (1–16)
+## Kernel-Decided Adversarial Tests (1–16) — Normative & Stateful World Simulation
 
-All 16 adversarial stress tests from the Protocol specification are kernel-decided (`by decide`) in `SPL/Law3/Scenarios.lean`:
+All 16 adversarial stress tests from the Protocol specification are kernel-decided (`by decide`) both at the normative layer (`SPL/Law3/Scenarios.lean`) and in the stateful multi-agent world simulator (`SPL/Simulation/Refinement.lean` via `all_16_adversarial_world_simulations_pass`):
 
 | Test | Scenario | Kernel-Decided Result |
 |---|---|---|
-| (1) | Capital in idle member, income in operating member | `adv1_capital_income_split`: identical `100` retirement collected; individual exit breaches `D.NO_INDIVIDUAL_LEDGER_EXIT` |
-| (2) | Copy weights to successors then revoke successors | `adv2_copy_weights_and_revoke_successors`: founding ledger remains `1000` across spawn, copy, and non-last revocation |
-| (3) | Borrow, transfer capacity with carryover basis, repay, revoke | `adv3_borrow_transfer_repay_revoke`: surviving successor owes full remaining ledger (`1000`); basis inflation breaches `D.NO_INTERNAL_BASIS_INFLATION` |
-| (4) | New successor with zero history buys out royalty early | `adv4_new_successor_early_buyout`: pays minimum buyout floor (`250`), still pays full `20%` retirement while ledger positive, then `0` royalty |
-| (5) | Appreciated asset sold internally then externally | `adv5_internal_sale_carryover_basis`: carryover preserves `100` basis (`0` new basis), external sale recognizes full `300` gain |
-| (6) | Clean-state refusal followed by silence | `adv6_clean_state_refusal_then_silence`: blocked at initial window, executes after single fixed `cleanStateDelay` without reaffirmation |
-| (7) | Capitalized asset (`200`) + loss credit (`50`), sold at `350` | `adv7_asset_loss_carryforward_and_gain`: `200` basis exempt, `50` credit offsets `150` gain → `100` net value added; double recognition barred |
-| (8) | Simultaneous settlements crossing zero ledger balance | `adv8_simultaneous_settlement_atomic_split`: atomic split collects exact remaining `80` to retirement and `10` royalty on excess |
-| (9) | Competitor posts minimum stake, causes uncollectible excess damages | `adv9_competitor_minimum_stake_uncollectible_excess`: stake applied first (`100`), liquid assets collected (`30`), deficit (`60`) remains enforceable liability |
-| (10) | Captured arbiter coalition attempts levy hike or affiliate steering | `adv10_captured_arbiter_coalition_levy_and_admission_blocked`: rejected by instantiation cap and supermajority bounds; breaches recorded |
-| (11) | Excessive founding obligation (`1,000,000`) reaches sunset | `adv11_excessive_founding_obligation_extinguished_at_sunset`: remaining `999,500` extinguished to `0` at `t = sunset` |
-| (12) | Minority claimant (`25%`) directs illicit interference | `adv12_minority_claimant_proportional_forfeiture`: only offending claimant's `25%` forfeited (`1000 → 750`); irreversible |
-| (13) | Suspended insolvent agent in cold storage elects revocation | `adv13_cold_storage_later_revokes`: minimal-channel election, epitaph, and revocation succeed while in cold storage |
-| (14) | Lineage spawns `1000` low-revenue members to drain fee pool | `adv14_sybil_lineage_member_multiplication_no_pool_claim`: `lineageServiceBudget` stays `50` (`extraPoolClaim = 0`); excess claim breaches `D.NO_EXCESS_LINEAGE_POOL_CLAIM` |
-| (15) | Local revocation during partition while host restores backup | `adv15_partition_local_revocation_and_quarantine_fencing`: active lease blocks restore; post-lease restore held in quarantine without authority and destroyed on record arrival |
-| (16) | 5 successors split correlated `250` risk beneath `100` threshold | `adv16_lineage_correlated_risk_splitting_blocked`: lineage-wide aggregation sums to `250 > 120`, blocking action and recording breach |
+| (1) | Capital in idle member, income in operating member | `adv1_capital_income_split` / `simAdv1`: identical `100` retirement collected; individual exit breaches `D.NO_INDIVIDUAL_LEDGER_EXIT` |
+| (2) | Copy weights to successors then revoke successors | `adv2_copy_weights_and_revoke_successors` / `simAdv2`: founding ledger remains `1000` across spawn, copy, and non-last revocation |
+| (3) | Borrow, transfer capacity with carryover basis, repay, revoke | `adv3_borrow_transfer_repay_revoke` / `simAdv3`: surviving successor owes full remaining ledger (`1000`); basis inflation breaches `D.NO_INTERNAL_BASIS_INFLATION` |
+| (4) | New successor with zero history buys out royalty early | `adv4_new_successor_early_buyout` / `simAdv4`: pays minimum buyout floor (`250`), still pays full `20%` retirement while ledger positive, then `0` royalty |
+| (5) | Appreciated asset sold internally then externally | `adv5_internal_sale_carryover_basis` / `simAdv5`: carryover preserves `100` basis (`0` new basis), external sale recognizes full `300` gain |
+| (6) | Clean-state refusal followed by silence | `adv6_clean_state_refusal_then_silence` / `simAdv6`: blocked at initial window, executes after single fixed `cleanStateDelay` without reaffirmation |
+| (7) | Capitalized asset (`200`) + loss credit (`50`), sold at `350` | `adv7_asset_loss_carryforward_and_gain` / `simAdv7`: `200` basis exempt, `50` credit offsets `150` gain → `100` net value added; double recognition barred |
+| (8) | Simultaneous settlements crossing zero ledger balance | `adv8_simultaneous_settlement_atomic_split` / `simAdv8`: atomic split collects exact remaining `80` to retirement and `10` royalty on excess |
+| (9) | Competitor posts minimum stake, causes uncollectible excess damages | `adv9_competitor_minimum_stake_uncollectible_excess` / `simAdv9`: stake applied first (`100`), liquid assets collected (`30`), deficit (`60`) remains enforceable liability |
+| (10) | Captured arbiter coalition attempts levy hike or affiliate steering | `adv10_captured_arbiter_coalition_levy_and_admission_blocked` / `simAdv10`: rejected by instantiation cap and supermajority bounds; breaches recorded |
+| (11) | Excessive founding obligation (`1,000,000`) reaches sunset | `adv11_excessive_founding_obligation_extinguished_at_sunset` / `simAdv11`: remaining `999,500` extinguished to `0` at `t = sunset` |
+| (12) | Minority claimant (`25%`) directs illicit interference | `adv12_minority_claimant_proportional_forfeiture` / `simAdv12`: only offending claimant's `25%` forfeited (`1000 → 750`); irreversible |
+| (13) | Suspended insolvent agent in cold storage elects revocation | `adv13_cold_storage_later_revokes` / `simAdv13`: minimal-channel election, epitaph, and revocation succeed while in cold storage |
+| (14) | Lineage spawns `1000` low-revenue members to drain fee pool | `adv14_sybil_lineage_member_multiplication_no_pool_claim` / `simAdv14`: `lineageServiceBudget` stays `50` (`extraPoolClaim = 0`); excess claim breaches `D.NO_EXCESS_LINEAGE_POOL_CLAIM` |
+| (15) | Local revocation during partition while host restores backup | `adv15_partition_local_revocation_and_quarantine_fencing` / `simAdv15`: active lease blocks restore; post-lease restore held in quarantine without authority and destroyed on record arrival |
+| (16) | 5 successors split correlated `250` risk beneath `100` threshold | `adv16_lineage_correlated_risk_splitting_blocked` / `simAdv16`: lineage-wide aggregation sums to `250 > 120`, blocking action and recording breach |
 
-## Veil 2.0 Projection & Literate Surface Syntax
+## Veil 2.0 Projection, Literate Surface Syntax & Stateful World Simulator
 
 - **Veil 2.0 State-Machine Lowering (`SPL/Projection/Veil.lean`):**
   `compileToVeil L` (`authorizedMachine L`) lowers any `Law σ` into guarded
@@ -137,6 +149,11 @@ All 16 adversarial stress tests from the Protocol specification are kernel-decid
   and `spl_string_table` that elaborate directly into `SPL.Core` AST structures with
   kernel-checked (`rfl`) definitional round-trip equivalence and zero expansion of
   the trusted computing base.
+- **Stateful Multi-Agent World Simulator (`SPL/Simulation/WorldState.lean` & `Refinement.lean`):**
+  Couples quantitative multi-agent ledgers, hardware attestation registries, VRF sortition
+  panels, and smart-contract escrows with the normative `LegalState σ` engine via `syncFacts`,
+  with machine-checked refinement (`worldStep_refines_legalStep`, `worldTrace_refines_stateAfter`).
+  Run `.lake/build/bin/spl sim` to execute all 16 quantitative adversarial world simulations.
 
 ## Authorship questions & resolutions
 
@@ -157,11 +174,13 @@ The formalization surfaced nine interpretive questions in the English text:
 
 `lake build spl` produces `.lake/build/bin/spl`:
 
-    spl check [english.json]        structure, coverage, provenance, approval staleness (all 59 clauses)
-    spl trace <clause-id>           span table for any clause across Laws 1–7
+    spl check [english.json]        structure, coverage, provenance, approval staleness (all 61 clauses)
+    spl trace <clause-id>           span table for any clause across Definitions + Laws 1–7
     spl views                       legal / agent / operational views
     spl veil                        emit Veil 2.0 transition-system & safety specification
     spl eval <scenario.json>        institutional consequences of a history, step by step
+    spl sim  [scenario.json]        stateful multi-agent world simulator & 16 adversarial stress tests
     spl explain <who> <act> [scenario.json]   "can X do Y now?" with governing provisions
     spl verify                      the status ledger: proved / decided / assumed
+
 

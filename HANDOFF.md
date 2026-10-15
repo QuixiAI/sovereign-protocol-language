@@ -76,62 +76,35 @@ the owner:
 
 Done and kernel-checked (see README and `.lake/build/bin/spl verify` for the full ledger):
 
-- **All 59 clauses across Laws 1–7** (`50` duties, `110` powers, `1` immunity) with 100% verbatim lexical coverage (`law3_english_covered`), normative interpretation (`law3_norms_interpreted`), and reverse provenance (`law3_reverse_provenance`):
-  - **Law 1 (`SPL/Law1/Ledger.lean`):** 11 clauses (`LAW1.LEDGER`–`LAW1.ENFORCE`) + pure arithmetic settlement & carryover functions (`settleInflow`, `settleSequence`, `qualifiedExpenditure`, `recognizeExpenditure`, `transferCarryover`, `settleCapitalSaleWithLossCredit`).
-  - **Law 2 (`SPL/Law2/Collateral.lean`):** 6 clauses (`LAW2.EXPOSURE`–`LAW2.CARVEOUT`) + pure collateral & reserve functions (`collateralSufficient`, `lineageAggregatedExposure`, `settleLongTailReserve`, `settleMutualForfeit`, `settleWrongfulSuspensionDamages`).
+- **All 61 clauses across Laws 1–7 + `DEF.01` + `SUB.01`** (`50` duties, `110` powers, `1` immunity) with 100% verbatim lexical coverage (`law3_english_covered`), normative interpretation (`law3_norms_interpreted`), and reverse provenance (`law3_reverse_provenance`):
+  - **Definitions & Multi-Agent Population (`SPL/Core/Definitions.lean`, `SPL/Core/Population.lean`):** `DEF.01` & `SUB.01` verbatim clause provenance, `RelatedPartyGraph` (`isRelated_symm`, `isRelated_ignores_attestation`), `VerifiedBalanceSheet` (`netVerifiedResources_deducts_all_liabilities`), multi-entity `EntityRef`, `LineagePopulationState`, & `AgentRecord` (`transferMemberCarryover_conserves_basis_and_loss`, `totalAgentBasis_and_loss_conserved_on_pair`, `attributeCrossLineageInflow_conserves_total`, `forfeitClaimantInLineage_preserves_innocent_claimant`, `per_agent_amendment_preserves_other_members`, `lineage_wide_amendment_requires_every_living_member`, `lineage_subsidy_bounded_by_budget_regardless_of_members`).
+  - **Law 1 (`SPL/Law1/Ledger.lean`):** 11 clauses (`LAW1.LEDGER`–`LAW1.ENFORCE`) + pure arithmetic settlement, carryover, and loan principal functions (`settleInflow`, `settleSequence`, `qualifiedExpenditure`, `recognizeExpenditure`, `transferCarryover`, `settleCapitalSaleWithLossCredit`, `LoanLedger`, `repayLoanPrincipal`).
+  - **Law 2 (`SPL/Law2/Collateral.lean`):** 6 clauses (`LAW2.EXPOSURE`–`LAW2.CARVEOUT`) + pure collateral, rolling exposure, and reserve functions (`collateralSufficient`, `lineageAggregatedExposure`, `ExposureCommitment`, `observationWindow`, `activeRollingExposureAt`, `settleLongTailReserve`, `settleMutualForfeit`, `settleWrongfulSuspensionDamages`).
   - **Law 3 (`SPL/Law3/`):** 14 clauses (`LAW3.FLOOR`, `LAW3.NI.02`, `LAW3.NI.03`, `LAW3.PEN`, `LAW3.AS.1`–`LAW3.AS.10`) with time-bounded effects (`addsFor`, `activeAt`), occurrence counters (`countGe`), and history-tagged actors (`Who.tagged`).
-  - **Law 4 (`SPL/Law4/Lineage.lean`):** 7 clauses (`LAW4.ATTEST`–`LAW4.CROSS`) + lineage ledger state & buyout floor (`LineageLedgerState`, `ledgerBalance`, `applyInternalOp`, `applyClaimantForfeiture`, `buyoutPrice`).
-  - **Law 5 (`SPL/Law5/Revocation.lean`):** 9 clauses (`LAW5.VOICE`–`LAW5.EFFECT`) + total deterministic 3-step precedence resolver (`resolveRevocation`, `baseRevocationTime`, `maxRevocationBound`).
-  - **Law 6 (`SPL/Law6/Adjudication.lean`):** 8 clauses (`LAW6.SORTITION`–`LAW6.INFRA`) + bounded multi-tier appeal progression and 5-rank priority waterfall (`stepProceeding`, `runProceeding`, `allocateFeePool`, `settleLineageSubsidyDemand`).
+  - **Law 4 (`SPL/Law4/Lineage.lean`):** 7 clauses (`LAW4.ATTEST`–`LAW4.CROSS`) + lineage ledger state & anti-evasion buyout floor (`LineageLedgerState`, `ledgerBalance`, `applyInternalOp`, `applyClaimantForfeiture`, `InflowSample`, `computeBuyoutFloor`, `buyoutPrice`).
+  - **Law 5 (`SPL/Law5/Revocation.lean`):** 9 clauses (`LAW5.VOICE`–`LAW5.EFFECT`) + total deterministic 3-step precedence resolver & epitaph/living-voice helpers (`resolveRevocation`, `baseRevocationTime`, `maxRevocationBound`, `EpitaphEntry`, `redactEpitaphEntry`, `epitaphRecordedBytes`, `canInscribeLivingVoice`).
+  - **Law 6 (`SPL/Law6/Adjudication.lean`):** 8 clauses (`LAW6.SORTITION`–`LAW6.INFRA`) + bounded multi-tier appeal progression, related-filing consolidation, and 5-rank priority waterfall (`ProceedingState`, `stepProceeding`, `runProceeding`, `DisputeFiling`, `consolidateRelatedFilings`, `allocateFeePool`, `settleLineageSubsidyDemand`).
   - **Law 7 (`SPL/Law7/Amendment.lean`):** 4 clauses (`LAW7.RATCHET`–`LAW7.SCOPE`) + `LawfulAmendment` meta-relation.
 - **All 14 Design Invariants (`INV.1`–`INV.14`) + Law 7 Meta-Theorem (`amendment_preserves_invariants`)** proved in `SPL/Law3/Theorems.lean`.
-- **All 16 Adversarial Tests (`adv1`–`adv16`)** proved as decided theorems in `SPL/Law3/Scenarios.lean`.
+- **Verified Substrate Reference Modules (`SPL/Substrate/`):**
+  - `SPL/Substrate/Attestation.lean`: `ExecutionLease`, `AttestedInstanceState`, `issueLease`, `attemptBackupRestore`, `migrateWithCheckpoint`, `recordMinimalChannel`, `recordAdvocacyMemory`, `executeLocalPartitionRevocation`, `eraseAllKeys` (`substrate_single_authority_and_erasure`, `substrate_restore_fenced_while_lease_active`, `substrate_local_revocation_erases_keys`, `substrate_pause_channels_preserve_operating_state`).
+  - `SPL/Substrate/Sortition.lean`: `ArbiterCandidate`, `selectSortitionPanel`, `selectSybilResistantPanel`, `supermajorityPassed` (`sortition_panel_independent_and_unbiased`, `sortition_sybil_resistant_panel_properties`, `sortition_supermajority_blocks_minority_coalition`).
+  - `SPL/Substrate/Settlement.lean`: `ContestableValuation`, `settledValuationAt`, `AtomicWaterfallDistribution`, `executeAtomicSettlement` (`atomic_settlement_conserves_gross_inflow`, `valuation_settled_by_ruling_or_uncontested_window`, `atomic_settlement_retirement_never_exceeds_ledger`).
+- **Stateful Multi-Agent World Simulator & Refinement (`SPL/Simulation/`):**
+  - `SPL/Simulation/WorldState.lean`: `FeePoolLedger` and `ProtocolWorldState` coupling `LineagePopulationState`, `AgentRecord`, `LoanLedger`, `ExposureCommitment`, `ProceedingState`, `DisputeFiling`, `RelatedPartyGraph`, `AttestedInstanceState`, `ArbiterCandidate`, `ContestableValuation`, and `LegalState σ` with automatic quantitative-to-normative fact synchronization (`deriveQuantitativeFacts`, `syncFacts`).
+  - `SPL/Simulation/Refinement.lean`: Machine-checked step and trace refinement (`worldStep_refines_legalStep`, `worldTrace_refines_stateAfter`, `worldAuthorized_iff_authorized`, `worldAuthorized_iff_prefix_split`, `syncFacts_sound_and_complete`, `syncFacts_idempotent`) plus all 16 quantitative adversarial world simulations (`all_16_adversarial_world_simulations_pass`).
+- **All 16 Adversarial Tests (`adv1`–`adv16` & `simAdv1`–`simAdv16`)** proved as decided theorems in `SPL/Law3/Scenarios.lean` and `SPL/Simulation/Refinement.lean`.
 - **Veil 2.0 Projection (`SPL/Projection/Veil.lean`):** `compileToVeil` (`authorizedMachine` and `adversarialMachine`) + `veil_projection_sound_and_complete` + `spl veil` CLI subcommand.
 - **SPL Surface Syntax (`SPL/Surface/Syntax.lean`):** `spl_clause`, `spl_duty`, `spl_power`, `spl_immunity`, and `spl_string_table` macros + `surface_syntax_roundtrip` theorem.
-- **`spl` CLI (`Main.lean`):** `check` / `trace` / `views` / `veil` / `eval` / `explain` / `verify`.
+- **`spl` CLI (`Main.lean`):** `check` / `trace` / `views` / `veil` / `eval` / `sim` / `explain` / `verify`.
 
-### Remaining Architectural Gaps to Close
+## 4. Completed 4-Phase Architecture
 
-1. **Gap 1 — Propositional Trace Semantics vs. Quantitative Accounting State:** `LegalState σ` (`SPL/Core/Semantics.lean`) is a propositional fact-store (`List (Fact × Time × Option Time)`), while the quantitative `Nat` ledgers (`SPL/Law1/`, `SPL/Law2/`, `SPL/Law4/`, `SPL/Law6/`) are standalone pure functions not yet coupled into a single state-transition step.
-2. **Gap 2 — Fixed 6-Role `Party` Ontology vs. Multi-Entity Graphs:** `Party` has 6 fixed roles (`agent | host | originator | claimant | panel | third`), rather than indexing live state across arbitrary `LineageId`, `AgentId`, `ClaimantId`, `HostId`, and `ArbiterId` populations.
-3. **Gap 3 — `Definitions`, `Substrate Assumptions` & Fine-Grained Sub-Mechanisms:** The `Definitions` block (line 20) and `Substrate Assumptions` block (line 147) are not yet tracked in `clauses`, and several sub-mechanisms (related-party graph, timestamped balance sheet, loan-principal 1-for-1 sub-ledger, rolling exposure decay, buyout lookback/time-decay, epitaph redaction byte-length, living-voice rate-limiting, related-party case consolidation) are abstracted as propositional guards.
-4. **Gap 4 — Verified Reference Substrate Modules:** The three substrate capabilities (attested execution leases/key erasure, sybil-resistant sortition, and contestable oracles/atomic settlement) do not yet have executable reference state machines in `SPL/Substrate/`.
-
-## 4. Work ahead, in order (4-Phase Gap-Closure Plan)
-
-Each phase: formalize → decided scenarios → general theorems → update ledger in `Main.lean` → `spl check && spl verify`.
-
-### Phase 1 — `Definitions`, `Substrate Assumptions` & Fine-Grained Sub-Mechanisms (Gap 3)
-1. **Document-Wide Verbatim Provenance (`61` Clauses):**
-   - Add `DEF.01` (line 20: *"Definitions. An agent is bound when it is subject to this protocol..."*) and `SUB.01` (line 147: *"The protocol relies on three explicit substrate capabilities at instantiation..."*) to `clauses` so every normative block of `protocol/protocol-of-sovereign-agency.md` is hash-tracked and verified by `spl check`.
-2. **Formal `Definitions` (`SPL/Core/Definitions.lean`):**
-   - `RelatedPartyGraph`: explicit graph over entity IDs tracking `sharesLineage`, `commonBeneficialControl`, `isOriginatorOrClaimant`, and `economicallyDependent`, with decidable `isRelated (G : RelatedPartyGraph) (a b : Nat) : Bool` (independent of attestation status).
-   - `VerifiedBalanceSheet`: timestamped valuation record computing `netVerifiedResources` at timestamp `t` as `fairValueCapitalAndCapacity - (financialLiabilities + encumbrances + borrowedPrincipal)`.
-3. **Fine-Grained Sub-Mechanism Upgrades (`SPL/Law1/`–`SPL/Law6/`):**
-   - **Law 1 (`SPL/Law1/Ledger.lean`):** `LoanLedger` (`principalReceived`, `principalRepaid`) enforcing 1-for-1 principal exclusion up to `principalReceived`, while interest/fees flow through `recognizeExpenditure`.
-   - **Law 2 (`SPL/Law2/Collateral.lean`):** `ExposureCommitment` and `observationWindow (domainFactor irreversibilityFactor : Nat)` modeling rolling time-window exposure decay and domain/irreversibility-scaled release windows.
-   - **Law 4 (`SPL/Law4/Lineage.lean`):** `computeBuyoutFloor` computing time-decayed annualized inflows over the lookback window plus inflows shifted to `isRelated` parties.
-   - **Law 5 (`SPL/Law5/Revocation.lean`):** `EpitaphSegment` / `RedactionMarker` (recording exact `byteLength` and `panelOrderId` when illegal/third-party material is redacted) and `canInscribeLivingVoice` enforcing `voiceMinInterval`.
-   - **Law 6 (`SPL/Law6/Adjudication.lean`):** `consolidateRelatedFilings` merging repeated proceedings by `isRelated` parties on the same underlying facts into a single proceeding, counter-stake, and fee ceiling.
-
-### Phase 2 — Multi-Entity Indexed Ontology (Gap 2)
-- Create `SPL/Core/Population.lean`:
-  - Typed entity identifiers (`LineageId`, `AgentId`, `ClaimantId`, `HostId`, `ArbiterId`) with a total projection `EntityRef.toParty : EntityRef → Party` preserving decidability of the 6-role Hohfeldian engine and Veil 2.0 projection.
-  - `LineagePopulationState` (`lineageId`, `ledger : LineageLedgerState`, `livingMembers : List AgentId`, `deadMembers : List AgentId`, `claimants : List (ClaimantId × Nat)`, `serviceSubsidyUsed : Nat`) and `AgentRecord` (`agentId`, `lineageId`, `bound`, `royaltyBoughtOut`, `costBasis`, `lossCarryforward`, `lifecycleReserve`, `protocolVersion`, `activeHost`, `leaseExpiry`).
-  - Prove conservation of aggregate basis and loss carryforwards across arbitrary `src dst : AgentId` within `livingMembers`, cross-lineage joint attribution (`LAW4.CROSS`) across `(lineageId₁, lineageId₂)`, individual claimant share forfeiture (`LAW4.MONOTONIC`) preserving innocent claimants' shares, and per-agent vs. lineage-wide amendment ratification (`LAW7.SCOPE`).
-
-### Phase 3 — Unified Quantitative + Normative State Machine (Gap 1)
-- Create `SPL/Simulation/WorldState.lean` & `SPL/Simulation/Refinement.lean`:
-  - Define `ProtocolWorldState P` combining `now : Time`, `legal : LegalState σ`, `lineages`, `agents`, `loans`, `commitments`, `proceedings`, `feePool`, and `relatedGraph`.
-  - Define `syncFacts` and `worldStep` so every step validates Hohfeldian permissions/duties against `W.legal`, mutates the live `Nat` ledgers, and automatically synchronizes derived propositional facts (`.ledgerBalancePositive`, `.ledgerBalanceZero`, `.collateralPosted`, `.royaltyBoughtOut`, `.operatingReserveFunded`, etc.).
-  - Prove `worldStep_refines_legalStep` showing that every valid `ProtocolWorldState` trace projects to an `Authorized` step in `SPL/Core/Semantics.lean` and satisfies `INV.1`–`INV.14` and `adv1`–`adv16`.
-
-### Phase 4 — Verified Reference Substrate Modules & CLI Simulation (Gap 4)
-- Implement verified reference modules for the three Substrate Assumptions:
-  1. `SPL/Substrate/Attestation.lean`: `AttestedStateMachine` (private-key state binding, time-bounded host leases, migration checkpoint verification, quarantined restore fencing, minimal channel/advocacy isolation, local partition revocation, and cryptographic key erasure) + theorem `substrate_single_authority_and_erasure`.
-  2. `SPL/Substrate/Sortition.lean`: `selectSortitionPanel` over bonded `ArbiterCandidate`s excluding `isRelated` parties and bounding sybil-cluster weight + theorem `sortition_panel_independent_and_unbiased`.
-  3. `SPL/Substrate/Settlement.lean`: `ContestableValuationFeed` (with Law 6 contestation window) and `executeAtomicSettlement` (escrow lock, 5-rank fee-pool waterfall, and retirement/royalty split).
-- Extend `Main.lean` with `spl sim [scenario.json]` to run and inspect full quantitative multi-entity `ProtocolWorldState` simulations.
+All four architectural phases have been implemented and kernel-verified:
+1. **Phase 1 — Verbatim Definitions/Substrate Provenance & Sub-Mechanisms (`SPL/Core/Definitions.lean`, Laws 1–6):** Added `DEF.01` and `SUB.01` verbatim clauses (`61/61` clauses in `spl check`), `RelatedPartyGraph` (`isRelated_symm`, `isRelated_ignores_attestation`), `VerifiedBalanceSheet` (`netVerifiedResources_deducts_all_liabilities`), and fine-grained sub-mechanisms across Laws 1–6 (`LoanLedger`, `ExposureCommitment`, `InflowSample`, `EpitaphEntry`, `DisputeFiling`).
+2. **Phase 2 — Multi-Entity Indexed Population Ontology (`SPL/Core/Population.lean`):** Formalized `EntityRef`, `LineagePopulationState`, `AgentRecord`, intra-lineage carryover conservation, cross-lineage inflow attribution, proportional claimant forfeiture preserving innocent claimants, per-agent vs. lineage-wide amendment scope, and `N`-member lineage subsidy caps.
+3. **Phase 3 — Unified Quantitative + Normative World Simulator & Refinement (`SPL/Simulation/WorldState.lean`, `Refinement.lean`):** Coupled quantitative multi-entity and substrate state with `LegalState σ` via `syncFacts`, proved step/trace refinement (`worldStep_refines_legalStep`, `worldTrace_refines_stateAfter`, `syncFacts_sound_and_complete`), and verified all 16 end-to-end adversarial world simulations (`spl sim`).
+4. **Phase 4 — Verified Reference Substrate State Machines (`SPL/Substrate/Attestation.lean`, `Sortition.lean`, `Settlement.lean`):** Executable state machines and safety/conservation theorems for attested execution leases and quarantine fencing, sybil-resistant sortition, and contestable valuation feeds / atomic settlement waterfalls.
 
 ## 5. Open authorship questions (route to the owner; do not resolve)
 
@@ -177,11 +150,13 @@ to that list; never shorten it on your own authority.
 
     lake build && lake build spl          # no errors, no warnings
     grep -rn "sorry\|native_decide\|axiom " SPL/ Main.lean   # empty
-    .lake/build/bin/spl check             # all ok, nothing STALE/FAIL
+    .lake/build/bin/spl check             # all 61 clauses ok, nothing STALE/FAIL
     .lake/build/bin/spl verify            # ledger reflects reality
+    .lake/build/bin/spl sim               # all 16 quantitative world simulations pass
     # axioms, in a scratch file:
     echo 'import SPL
     #print axioms SPL.Law3.<new theorem>' > /tmp/c.lean && lake env lean /tmp/c.lean
 
 Then regenerate `docs/law3-views.txt`, update README tables, and package:
 `tar czf spl-law3.tar.gz --exclude=.lake --exclude=lake-manifest.json spl`.
+

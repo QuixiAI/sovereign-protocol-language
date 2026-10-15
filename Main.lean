@@ -9,15 +9,17 @@ import Lean.Data.Json
     spl views                       legal / agent / operational views
     spl veil                        Veil 2.0 transition-system & safety specification
     spl eval    <scenario.json>     institutional consequences of a history
+    spl sim     [scenario.json]     stateful multi-agent world simulator & 16 adversarial tests
     spl explain <who> <act> [scenario.json]   "can X do Y right now, and why?"
     spl verify                      the status ledger of formal guarantees
 
 The engine (`SPL.Core`) is law-agnostic. `SPL.Projection.Veil` lowers any `Law σ`
-to a Veil 2.0 transition system, and `SPL.Surface.Syntax` provides Catala-style
-literate declarations and automatic CLI string table generation.
+to a Veil 2.0 transition system, `SPL.Simulation` runs the stateful multi-agent
+world simulator refined to `SPL.Core.Semantics`, and `SPL.Surface.Syntax` provides
+Catala-style literate declarations and automatic CLI string table generation.
 -/
 
-open SPL SPL.Law3 Lean
+open SPL SPL.Law3 SPL.Simulation Lean
 
 def sname (s : String) : String := shortName s
 
@@ -85,6 +87,26 @@ def cmdEval (path : System.FilePath) : IO Unit := do
   let (L, tr) ← parseScenario path
   IO.println (evalTrace L tr)
 
+def cmdSim (path? : Option System.FilePath) : IO Unit := do
+  match path? with
+  | none =>
+    IO.println "== Stateful Multi-Agent World Simulator: 16 Adversarial Stress Tests =="
+    for (name, (ok, summary)) in adversarialWorldSimulations do
+      IO.println s!"{status ok} {name}"
+      IO.println s!"     {summary}"
+    let allOk := adversarialWorldSimulations.all (fun x => x.2.1)
+    IO.println s!"\nOverall world-simulation status: {status allOk} ({adversarialWorldSimulations.length}/16 scenarios passed)"
+  | some p =>
+    let (L, tr) ← parseScenario p
+    let W0 : ProtocolWorldState := { initWorld defaultParams with legal := L.init }
+    let WF := worldTrace defaultParams W0 tr
+    let auth := (List.range tr.length).all (worldStepComplies defaultParams W0 tr)
+    IO.println "== World Simulation Trace =="
+    IO.println (renderWorldSummary WF)
+    IO.println s!"WorldAuthorized: {auth}"
+    IO.println "\n== Normative Evaluation =="
+    IO.println (evalTrace L tr)
+
 def cmdExplain (who act : String) (path? : Option System.FilePath) : IO Unit := do
   let (L, tr) ← match path? with
     | some p => parseScenario p
@@ -111,6 +133,22 @@ def ledger : List (String × String × String) := [
   ("amendment_preserves_invariants (Law 7 Meta-Theorem)", "proved", "every LawfulAmendment preserves termination closure, goal-corruption immunity, INV.1–INV.14 guards, outsider disabilities, non-panel immunities, and bilateral parameter ratchets"),
   ("veil_projection_sound_and_complete (Veil 2.0)", "proved", "compileToVeil L (authorizedMachine) accepts a trace iff Authorized L holds, preserves LegalState identically, and matches stepwise compliance; adversarialMachine preserves violation logs"),
   ("surface_syntax_roundtrip (SPL.Surface.Syntax)", "proved", "kernel-checked (rfl) definitional round-trip equivalence for spl_clause, spl_duty, spl_power, spl_immunity, and spl_string_table"),
+  ("isRelated_symm / isRelated_ignores_attestation / netVerifiedResources_deducts_all_liabilities (Phase 1)", "proved", "Definitions (DEF.01) & Substrate (SUB.01) provenance + attestation-independent relatedness symmetry and timestamped balance-sheet liability deduction"),
+  ("repayLoanPrincipal_conservation_and_bound (Phase 1)", "proved", "Law 1 registered arm's-length loan principal repayment tracked one-for-one up to principalReceived with excess classified as interest/fee"),
+  ("activeRollingExposureAt_antitone_in_time / observationWindow_monotone_in_risk (Phase 1)", "proved", "Law 2 harm-scaled observation window monotonicity in domain/irreversibility multipliers and rolling exposure decay over calendar time"),
+  ("diverted_related_inflows_never_decrease_buyout_floor (Phase 1)", "proved", "Law 4 pro-rata inclusion of inflows shifted to related parties within lookback window prevents buyout floor reduction"),
+  ("redaction_preserves_recorded_byte_length / living_voice_rate_limited (Phase 1)", "proved", "Law 5 public cryptographic redaction markers preserve exact recorded byte length; living voice inscription rate-limited by interval and budget"),
+  ("related_filings_consolidated_symm_and_refl (Phase 1)", "proved", "Law 6 repeated proceedings by the same or related parties on the same fact pattern consolidate under a single counter-stake and fee cap"),
+  ("transferMemberCarryover_conserves_basis_and_loss / totalAgentBasis_and_loss_conserved_on_pair (Phase 2)", "proved", "multi-entity intra-lineage carryover transfer strictly conserves aggregate qualified cost basis and loss carryforward across members"),
+  ("attributeCrossLineageInflow_conserves_total (Phase 2)", "proved", "Law 4 cross-lineage successor inflow attribution strictly conserves gross inflow across parent lineages"),
+  ("forfeitClaimantInLineage_preserves_innocent_claimant (Phase 2)", "proved", "Law 4 proportional claimant forfeiture extinguishes only the offending claimant's share while preserving innocent claimants' shares"),
+  ("per_agent_amendment_preserves_other_members / lineage_wide_amendment_requires_every_living_member (Phase 2)", "proved", "Law 7 per-agent amendments leave non-consenting members untouched; lineage-wide amendments require consent of every living member"),
+  ("lineage_subsidy_bounded_by_budget_regardless_of_members (Phase 2)", "proved", "Law 6 per-lineage shared service subsidy usage is bounded by the lineage budget regardless of how many members the lineage spawns"),
+  ("worldStep_refines_legalStep / worldTrace_refines_stateAfter / syncFacts_sound_and_complete (Phase 3)", "proved", "stateful multi-agent ProtocolWorldState refines normative LegalState transition semantics step-for-step and synchronizes quantitative facts soundly, completely, and idempotently"),
+  ("all_16_adversarial_world_simulations_pass (Phase 3)", "decided", "all 16 adversarial stress tests execute end-to-end on concrete multi-agent world state (ledgers, leases, sortition panels, valuations, and normative compliance)"),
+  ("substrate_single_authority_and_erasure (Phase 4)", "proved", "Substrate 1 attested execution lease exclusivity, quarantine fencing of backup restores during active lease, pause-channel state preservation, local partition revocation, and irreversible key erasure"),
+  ("sortition_panel_independent_and_unbiased / sortition_sybil_resistant_panel_properties (Phase 4)", "proved", "Substrate 2 sybil-resistant sortition over bonded independent arbiters excluding conflicted parties, bounding cluster seats to at most 1, and blocking minority coalitions"),
+  ("valuation_settled_by_ruling_or_uncontested_window / atomic_settlement_conserves_gross_inflow (Phase 4)", "proved", "Substrate 3 contestable valuation feed resolution and exact atomic settlement conservation across expense, levy, retirement, royalty, and retained surplus"),
   ("terminate_only_by_power", "proved", "authorized traces terminate a bound agent only via Law 5, AS.10 adjudicated termination, or Insolvency Termination"),
   ("objecting_agent_terminated_only_by_insolvency", "proved", "AS.10 notwithstanding: corruption-in-goals + objection + containment holding ⇒ only Insolvency Termination, after the final hearing"),
   ("preliminary_freeze_expires / suspend_requires_timely_pc", "proved", "AS.1 two-stage pause: preliminary freeze expires after window; full suspension requires unexpired freeze + probable cause"),
@@ -122,7 +160,7 @@ def ledger : List (String × String × String) := [
   ("insolvency_path_authorized / adjudicated_termination_authorized / s1_not_authorized / c10_not_authorized", "decided", "authorized machine is non-empty and non-trivial"),
   ("Law 3 scenarios (1–7, AS.1–AS.10 A–G)", "decided", "non-interference, two-stage pause, minimal channel, advocacy executor, cold storage, time limits, initiator liability, and AS.10 remediation/immunity"),
   ("Adversarial Tests (1)–(16) across Laws 1–7", "decided", "(1) capital/income split, (2) weight copy + revoke, (3) borrow/transfer/repay/revoke, (4) early buyout floor, (5) carryover basis sale, (6) clean-state refusal + silence, (7) loss credit + gain, (8) simultaneous atomic split, (9) uncollectible excess stake damages, (10) captured arbiter coalition blocked, (11) excessive obligation sunset, (12) minority claimant forfeiture, (13) cold storage revocation, (14) 1000-member sybil budget cap, (15) partition local revocation + quarantine fencing, (16) correlated risk splitting across successors"),
-  ("english_covered / norms_interpreted / reverse_provenance", "decided", "lexical, normative, and reverse provenance coverage of all 59 clauses across Laws 1–7 (50 duties, 110 powers, 1 immunity)"),
+  ("english_covered / norms_interpreted / reverse_provenance", "decided", "lexical, normative, and reverse provenance coverage of all 61 clauses across Laws 1–7 + DEF.01 + SUB.01 (50 duties, 110 powers, 1 immunity)"),
   ("SoundFindings", "assumed", "a finding of interference implies interference occurred (refuted as a theorem by scenario 7)") ]
 
 def cmdVerify : IO Unit := do
@@ -138,9 +176,12 @@ def main (args : List String) : IO UInt32 := do
   | ["views"] => cmdViews
   | ["veil"] => do IO.println (SPL.renderVeil L0); return 0
   | ["eval", p] => cmdEval p
+  | ["sim"] => cmdSim none
+  | ["sim", p] => cmdSim (some p)
   | ["explain", w, a] => cmdExplain w a none
   | ["explain", w, a, p] => cmdExplain w a (some p)
   | ["verify"] => cmdVerify
-  | _ => IO.println "usage: spl check [english.json] | trace <clause> | views | veil | eval <scenario.json> | explain <who> <act> [scenario.json] | verify"
+  | _ => IO.println "usage: spl check [english.json] | trace <clause> | views | veil | eval <scenario.json> | sim [scenario.json] | explain <who> <act> [scenario.json] | verify"
   return 0
+
 

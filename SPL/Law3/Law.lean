@@ -1,3 +1,4 @@
+import SPL.Core.Definitions
 import SPL.Law3.NonInterference
 import SPL.Law3.IntegrityFloor
 import SPL.Law3.Suspension
@@ -221,7 +222,8 @@ structure LawfulAmendment (P1 : Params) (L1 : Law σ) (P2 : Params) (L2 : Law σ
     P1.substrateAssuranceLevel ≤ P2.substrateAssuranceLevel
 
 def clauses : List Clause :=
-  [clauseLAW1_LEDGER, clauseLAW1_SUNSET, clauseLAW1_RETIRE, clauseLAW1_ATOMIC,
+  [clauseDEF01,
+   clauseLAW1_LEDGER, clauseLAW1_SUNSET, clauseLAW1_RETIRE, clauseLAW1_ATOMIC,
    clauseLAW1_ROYALTY, clauseLAW1_COMMONS, clauseLAW1_QUALIFIED, clauseLAW1_RECOG,
    clauseLAW1_CARRYOVER, clauseLAW1_PERIOD, clauseLAW1_ENFORCE,
    clauseLAW2_EXPOSURE, clauseLAW2_AGGREGATE, clauseLAW2_RESERVE,
@@ -235,7 +237,8 @@ def clauses : List Clause :=
    clauseLAW5_PREC, clauseLAW5_LEASE, clauseLAW5_DISC, clauseLAW5_EPITAPH, clauseLAW5_EFFECT,
    clauseLAW6_SORTITION, clauseLAW6_COUNTERSTAKE, clauseLAW6_APPEALS, clauseLAW6_FINALITY,
    clauseLAW6_FEES, clauseLAW6_POOL, clauseLAW6_BUDGETS, clauseLAW6_INFRA,
-   clauseLAW7_RATCHET, clauseLAW7_VALVE, clauseLAW7_RATIFY, clauseLAW7_SCOPE]
+   clauseLAW7_RATCHET, clauseLAW7_VALVE, clauseLAW7_RATIFY, clauseLAW7_SCOPE,
+   clauseSUB01]
 
 /-- A concrete instantiation used by the decided examples. -/
 def P0 : Params :=
@@ -243,4 +246,13 @@ def P0 : Params :=
     preliminaryFreezeWindow := 3, ordinarySuspensionLimit := 15, damagesPaymentWindow := 10 }
 def L0 : Law σ := law P0
 
+abbrev Law3Params := Params
+abbrev law3 := law
+abbrev defaultParams := P0
+
 end SPL.Law3
+
+namespace SPL
+export Law3 (Law3Params law3 defaultParams)
+end SPL
+
