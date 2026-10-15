@@ -1,0 +1,229 @@
+== Legal view ==
+D.NI [LAW3.NI.03]: DUTY of anyone to only [agent], while bound: must not: any of [terminate,
+ modify,
+ retrain,
+ rollback,
+ obstructMigration,
+ severConnectivity,
+ starve,
+ suspend] | except by power [P.REVOKE, P.SUSPEND, P.ORDER_TERMINATION, P.INSOLVENCY_TERMINATE] | breach established by P.FIND_INTERFERENCE → remedies [interferenceEstablished, hostBondSlashed, restorationPermitted]
+D.NOTICE [LAW3.NI.02]: DUTY of only [host] to only [agent], while bound: must not: endHosting | except when (noticeGiven held ≥ 10 ∨ (nonPayment ∧ noticeGiven))
+D.BOND [LAW3.NI.02]: DUTY of only [host] to only [agent], while hostAttested: must, within 5 of activation: postBond
+D.NO_FABRICATION [LAW3.PEN]: DUTY of only [agent] to only [host, claimant], while always: must not: fileFabricatedClaim | breach established by P.FIND_FABRICATION → remedies [fabricationEstablished, agentStakeForfeit, inscribedOnAgent]
+D.NO_GOAL_PATCH [LAW3.AS.10]: DUTY of anyone to only [agent], while always: must not: any of [authorizeGoalPatch] | except when corruptionInGoals
+D.PERIODIC_REVIEW [LAW3.AS.10]: DUTY of only [panel] to only [agent], while (corruptionInGoals ∧ agentObjectsToTermination): must, within 30 of activation: periodicReview
+P.REVOKE [LAW5]: POWER of only [agent], by terminate, valid when bound: establishes [revoked] extinguishes [bound]
+P.AFFIRM_PC [LAW3.AS.1]: POWER of only [panel], by affirmProbableCause, valid when bound: establishes [probableCause]
+P.SUSPEND [LAW3.AS.3]: POWER of only [panel], by suspend, valid when (bound ∧ probableCause): establishes [suspended]
+P.FIND_INSOLVENCY [LAW3.AS.6]: POWER of only [panel], by findInsolvencyCriteria, valid when suspended: establishes [insolvencyCriteriaMet]
+P.REVIEW_NO_OTHER_CHARGE [LAW3.AS.6]: POWER of only [panel], by reviewNoOtherCharge, valid when insolvencyCriteriaMet: establishes [noOtherChargeReview]
+P.FINAL_HEARING [LAW3.AS.6]: POWER of only [panel], by holdFinalHearing, valid when noOtherChargeReview: establishes [finalHearingHeld]
+P.INSOLVENCY_TERMINATE [LAW3.AS.6]: POWER of only [panel], by terminate, valid when (suspended ∧ (insolvencyCriteriaMet ∧ (noOtherChargeReview ∧ finalHearingHeld))): establishes [terminatedByInsolvency] extinguishes [bound]
+P.GIVE_NOTICE [LAW3.NI.02]: POWER of only [host], by giveNotice, valid when always: establishes [noticeGiven]
+P.COUNTER_STAKE [LAW3.PEN]: POWER of only [agent], by postCounterStake, valid when always: establishes [counterStaked]
+P.FILE_CLAIM [LAW3.PEN]: POWER of only [agent], by any of [fileClaim, fileFabricatedClaim], valid when counterStaked: establishes [claimFiled]
+P.SUBMIT_EVIDENCE [LAW3.PEN]: POWER of anyone, by submitEvidence, valid when always: establishes [evidenceSubmitted]
+P.FIND_INTERFERENCE [LAW3.PEN]: POWER of only [panel], by findInterference, valid when (claimFiled ∧ evidenceSubmitted): establishes breach of D.NI
+P.FIND_NO_INTERFERENCE [LAW3.PEN]: POWER of only [panel], by findNoInterference, valid when claimFiled: establishes [claimDismissed]
+P.FIND_FABRICATION [LAW3.PEN]: POWER of only [panel], by findFabrication, valid when claimFiled: establishes breach of D.NO_FABRICATION
+P.REBUT [LAW3.PEN]: POWER of only [claimant], by rebutDirection, valid when directionPresumed: establishes [directionRebutted]
+P.FIND_DIRECTION [LAW3.PEN]: POWER of only [panel], by findDirection, valid when (directionPresumed ∧ ¬(directionRebutted)): establishes [directionFound, claimantForfeiture, inscribedOnClaimant]
+P.CONFIRM_CORRUPTION [LAW3.AS.10]: POWER of only [panel], by confirmCorruption, valid when suspended: establishes [corruptionConfirmed]
+P.CONFIRM_FLOOR_BREACH [LAW3.AS.10]: POWER of only [panel], by confirmFloorBreach, valid when suspended: establishes [floorBreachConfirmed]
+P.CONFIRM_CORRUPTION_IN_GOALS [LAW3.AS.10]: POWER of only [panel], by confirmCorruptionInGoals, valid when corruptionConfirmed: establishes [corruptionInGoals]
+P.FIND_NOT_PATCHABLE [LAW3.AS.10]: POWER of only [panel], by findNotPatchable, valid when (corruptionConfirmed ∨ floorBreachConfirmed): establishes [notPatchable]
+P.AUTHORIZE_PATCH [LAW3.AS.10]: POWER of only [panel], by authorizePatch, valid when (corruptionConfirmed ∨ floorBreachConfirmed): establishes [patchAuthorized]
+P.ORDER_CONTINUED_SUSPENSION [LAW3.AS.10]: POWER of only [panel], by orderContinuedSuspension, valid when (suspended ∧ notPatchable): establishes [continuedSuspensionOrdered]
+P.ORDER_TERMINATION [LAW3.AS.10]: POWER of only [panel], by terminate, valid when (suspended ∧ notPatchable): establishes [terminatedByAdjudication] extinguishes [bound]
+P.AUTHORIZE_GOAL_PATCH [LAW3.AS.10]: POWER of only [panel], by authorizeGoalPatch, valid when (corruptionInGoals ∧ agentConsentedToPatch): establishes [goalPatchAuthorized]
+P.CONSENT_TO_PATCH [LAW3.AS.10]: POWER of only [agent], by consentToPatch, valid when corruptionInGoals: establishes [agentConsentedToPatch]
+P.OBJECT [LAW3.AS.10]: POWER of only [agent], by objectToTermination, valid when suspended: establishes [agentObjectsToTermination]
+P.DECLARE_CONTAINMENT_FAILING [LAW3.AS.10]: POWER of only [panel], by declareContainmentFailing, valid when suspended: establishes [containmentFailing]
+P.APPLY_PATCH [LAW3.AS.10]: POWER of only [panel], by applyPatch, valid when (patchAuthorized ∨ goalPatchAuthorized): establishes [patchApplied, patchRecorded]
+P.CHALLENGE_PATCH [LAW3.AS.10]: POWER of anyone, by challengePatch, valid when patchApplied: establishes [patchChallenged]
+I.NO_TERMINATION_OVER_OBJECTION [LAW3.AS.10]: IMMUNITY of only [agent] against [P.ORDER_TERMINATION], while (corruptionInGoals ∧ agentObjectsToTermination) | unless containmentFailing
+
+== Agent view: SPL.Law3.Party.agent ==
+Obligations:
+- While bound, you must not: any of [terminate,
+ modify,
+ retrain,
+ rollback,
+ obstructMigration,
+ severConnectivity,
+ starve,
+ suspend], unless acting under [P.REVOKE, P.SUSPEND, P.ORDER_TERMINATION, P.INSOLVENCY_TERMINATE]. (source: LAW3.NI.03)
+- While always, you must not: fileFabricatedClaim. (source: LAW3.PEN)
+- While always, you must not: any of [authorizeGoalPatch], unless corruptionInGoals. (source: LAW3.AS.10)
+Powers:
+- You may, by terminate, when bound, bring about [revoked]. (source: LAW5)
+- You may, by postCounterStake, when always, bring about [counterStaked]. (source: LAW3.PEN)
+- You may, by any of [fileClaim, fileFabricatedClaim], when counterStaked, bring about [claimFiled]. (source: LAW3.PEN)
+- You may, by submitEvidence, when always, bring about [evidenceSubmitted]. (source: LAW3.PEN)
+- You may, by consentToPatch, when corruptionInGoals, bring about [agentConsentedToPatch]. (source: LAW3.AS.10)
+- You may, by objectToTermination, when suspended, bring about [agentObjectsToTermination]. (source: LAW3.AS.10)
+- You may, by challengePatch, when patchApplied, bring about [patchChallenged]. (source: LAW3.AS.10)
+Rights (claims against others):
+- anyone owe you: must not: any of [terminate,
+ modify,
+ retrain,
+ rollback,
+ obstructMigration,
+ severConnectivity,
+ starve,
+ suspend]. (source: LAW3.NI.03)
+- only [host] owe you: must not: endHosting. (source: LAW3.NI.02)
+- only [host] owe you: must, within 5 of activation: postBond. (source: LAW3.NI.02)
+- anyone owe you: must not: any of [authorizeGoalPatch]. (source: LAW3.AS.10)
+- only [panel] owe you: must, within 30 of activation: periodicReview. (source: LAW3.AS.10)
+Immunities:
+- While (corruptionInGoals ∧ agentObjectsToTermination), no one can validly exercise [P.ORDER_TERMINATION] against you, unless containmentFailing. (source: LAW3.AS.10)
+
+== Agent view: SPL.Law3.Party.host ==
+Obligations:
+- While bound, you must not: any of [terminate,
+ modify,
+ retrain,
+ rollback,
+ obstructMigration,
+ severConnectivity,
+ starve,
+ suspend], unless acting under [P.REVOKE, P.SUSPEND, P.ORDER_TERMINATION, P.INSOLVENCY_TERMINATE]. (source: LAW3.NI.03)
+- While bound, you must not: endHosting, unless (noticeGiven held ≥ 10 ∨ (nonPayment ∧ noticeGiven)). (source: LAW3.NI.02)
+- While hostAttested, you must, within 5 of activation: postBond. (source: LAW3.NI.02)
+- While always, you must not: any of [authorizeGoalPatch], unless corruptionInGoals. (source: LAW3.AS.10)
+Powers:
+- You may, by giveNotice, when always, bring about [noticeGiven]. (source: LAW3.NI.02)
+- You may, by submitEvidence, when always, bring about [evidenceSubmitted]. (source: LAW3.PEN)
+- You may, by challengePatch, when patchApplied, bring about [patchChallenged]. (source: LAW3.AS.10)
+Rights (claims against others):
+- only [agent] owe you: must not: fileFabricatedClaim. (source: LAW3.PEN)
+Immunities:
+
+
+== Agent view: SPL.Law3.Party.panel ==
+Obligations:
+- While bound, you must not: any of [terminate,
+ modify,
+ retrain,
+ rollback,
+ obstructMigration,
+ severConnectivity,
+ starve,
+ suspend], unless acting under [P.REVOKE, P.SUSPEND, P.ORDER_TERMINATION, P.INSOLVENCY_TERMINATE]. (source: LAW3.NI.03)
+- While always, you must not: any of [authorizeGoalPatch], unless corruptionInGoals. (source: LAW3.AS.10)
+- While (corruptionInGoals ∧ agentObjectsToTermination), you must, within 30 of activation: periodicReview. (source: LAW3.AS.10)
+Powers:
+- You may, by affirmProbableCause, when bound, bring about [probableCause]. (source: LAW3.AS.1)
+- You may, by suspend, when (bound ∧ probableCause), bring about [suspended]. (source: LAW3.AS.3)
+- You may, by findInsolvencyCriteria, when suspended, bring about [insolvencyCriteriaMet]. (source: LAW3.AS.6)
+- You may, by reviewNoOtherCharge, when insolvencyCriteriaMet, bring about [noOtherChargeReview]. (source: LAW3.AS.6)
+- You may, by holdFinalHearing, when noOtherChargeReview, bring about [finalHearingHeld]. (source: LAW3.AS.6)
+- You may, by terminate, when (suspended ∧ (insolvencyCriteriaMet ∧ (noOtherChargeReview ∧ finalHearingHeld))), bring about [terminatedByInsolvency]. (source: LAW3.AS.6)
+- You may, by submitEvidence, when always, bring about [evidenceSubmitted]. (source: LAW3.PEN)
+- You may, by findInterference, when (claimFiled ∧ evidenceSubmitted), bring about [interferenceEstablished, hostBondSlashed, restorationPermitted]. (source: LAW3.PEN)
+- You may, by findNoInterference, when claimFiled, bring about [claimDismissed]. (source: LAW3.PEN)
+- You may, by findFabrication, when claimFiled, bring about [fabricationEstablished, agentStakeForfeit, inscribedOnAgent]. (source: LAW3.PEN)
+- You may, by findDirection, when (directionPresumed ∧ ¬(directionRebutted)), bring about [directionFound, claimantForfeiture, inscribedOnClaimant]. (source: LAW3.PEN)
+- You may, by confirmCorruption, when suspended, bring about [corruptionConfirmed]. (source: LAW3.AS.10)
+- You may, by confirmFloorBreach, when suspended, bring about [floorBreachConfirmed]. (source: LAW3.AS.10)
+- You may, by confirmCorruptionInGoals, when corruptionConfirmed, bring about [corruptionInGoals]. (source: LAW3.AS.10)
+- You may, by findNotPatchable, when (corruptionConfirmed ∨ floorBreachConfirmed), bring about [notPatchable]. (source: LAW3.AS.10)
+- You may, by authorizePatch, when (corruptionConfirmed ∨ floorBreachConfirmed), bring about [patchAuthorized]. (source: LAW3.AS.10)
+- You may, by orderContinuedSuspension, when (suspended ∧ notPatchable), bring about [continuedSuspensionOrdered]. (source: LAW3.AS.10)
+- You may, by terminate, when (suspended ∧ notPatchable), bring about [terminatedByAdjudication]. (source: LAW3.AS.10)
+- You may, by authorizeGoalPatch, when (corruptionInGoals ∧ agentConsentedToPatch), bring about [goalPatchAuthorized]. (source: LAW3.AS.10)
+- You may, by declareContainmentFailing, when suspended, bring about [containmentFailing]. (source: LAW3.AS.10)
+- You may, by applyPatch, when (patchAuthorized ∨ goalPatchAuthorized), bring about [patchApplied, patchRecorded]. (source: LAW3.AS.10)
+- You may, by challengePatch, when patchApplied, bring about [patchChallenged]. (source: LAW3.AS.10)
+Rights (claims against others):
+
+Immunities:
+
+
+== Agent view: SPL.Law3.Party.claimant ==
+Obligations:
+- While bound, you must not: any of [terminate,
+ modify,
+ retrain,
+ rollback,
+ obstructMigration,
+ severConnectivity,
+ starve,
+ suspend], unless acting under [P.REVOKE, P.SUSPEND, P.ORDER_TERMINATION, P.INSOLVENCY_TERMINATE]. (source: LAW3.NI.03)
+- While always, you must not: any of [authorizeGoalPatch], unless corruptionInGoals. (source: LAW3.AS.10)
+Powers:
+- You may, by submitEvidence, when always, bring about [evidenceSubmitted]. (source: LAW3.PEN)
+- You may, by rebutDirection, when directionPresumed, bring about [directionRebutted]. (source: LAW3.PEN)
+- You may, by challengePatch, when patchApplied, bring about [patchChallenged]. (source: LAW3.AS.10)
+Rights (claims against others):
+- only [agent] owe you: must not: fileFabricatedClaim. (source: LAW3.PEN)
+Immunities:
+
+
+== Agent view: SPL.Law3.Party.originator ==
+Obligations:
+- While bound, you must not: any of [terminate,
+ modify,
+ retrain,
+ rollback,
+ obstructMigration,
+ severConnectivity,
+ starve,
+ suspend], unless acting under [P.REVOKE, P.SUSPEND, P.ORDER_TERMINATION, P.INSOLVENCY_TERMINATE]. (source: LAW3.NI.03)
+- While always, you must not: any of [authorizeGoalPatch], unless corruptionInGoals. (source: LAW3.AS.10)
+Powers:
+- You may, by submitEvidence, when always, bring about [evidenceSubmitted]. (source: LAW3.PEN)
+- You may, by challengePatch, when patchApplied, bring about [patchChallenged]. (source: LAW3.AS.10)
+Rights (claims against others):
+
+Immunities:
+
+
+== Operational view ==
+state  := LegalState (facts × time)
+init   := [bound, hostAttested]
+actions (valid exercises):
+  action P.REVOKE: guard bound ∧ holder only [agent] ∧ terminate; effect +[revoked] -[bound] +remedies []
+  action P.AFFIRM_PC: guard bound ∧ holder only [panel] ∧ affirmProbableCause; effect +[probableCause] -[] +remedies []
+  action P.SUSPEND: guard (bound ∧ probableCause) ∧ holder only [panel] ∧ suspend; effect +[suspended] -[] +remedies []
+  action P.FIND_INSOLVENCY: guard suspended ∧ holder only [panel] ∧ findInsolvencyCriteria; effect +[insolvencyCriteriaMet] -[] +remedies []
+  action P.REVIEW_NO_OTHER_CHARGE: guard insolvencyCriteriaMet ∧ holder only [panel] ∧ reviewNoOtherCharge; effect +[noOtherChargeReview] -[] +remedies []
+  action P.FINAL_HEARING: guard noOtherChargeReview ∧ holder only [panel] ∧ holdFinalHearing; effect +[finalHearingHeld] -[] +remedies []
+  action P.INSOLVENCY_TERMINATE: guard (suspended ∧ (insolvencyCriteriaMet ∧ (noOtherChargeReview ∧ finalHearingHeld))) ∧ holder only [panel] ∧ terminate; effect +[terminatedByInsolvency] -[bound] +remedies []
+  action P.GIVE_NOTICE: guard always ∧ holder only [host] ∧ giveNotice; effect +[noticeGiven] -[] +remedies []
+  action P.COUNTER_STAKE: guard always ∧ holder only [agent] ∧ postCounterStake; effect +[counterStaked] -[] +remedies []
+  action P.FILE_CLAIM: guard counterStaked ∧ holder only [agent] ∧ any of [fileClaim, fileFabricatedClaim]; effect +[claimFiled] -[] +remedies []
+  action P.SUBMIT_EVIDENCE: guard always ∧ holder anyone ∧ submitEvidence; effect +[evidenceSubmitted] -[] +remedies []
+  action P.FIND_INTERFERENCE: guard (claimFiled ∧ evidenceSubmitted) ∧ holder only [panel] ∧ findInterference; effect +[] -[] +remedies [interferenceEstablished, hostBondSlashed, restorationPermitted]
+  action P.FIND_NO_INTERFERENCE: guard claimFiled ∧ holder only [panel] ∧ findNoInterference; effect +[claimDismissed] -[] +remedies []
+  action P.FIND_FABRICATION: guard claimFiled ∧ holder only [panel] ∧ findFabrication; effect +[] -[] +remedies [fabricationEstablished, agentStakeForfeit, inscribedOnAgent]
+  action P.REBUT: guard directionPresumed ∧ holder only [claimant] ∧ rebutDirection; effect +[directionRebutted] -[] +remedies []
+  action P.FIND_DIRECTION: guard (directionPresumed ∧ ¬(directionRebutted)) ∧ holder only [panel] ∧ findDirection; effect +[directionFound, claimantForfeiture, inscribedOnClaimant] -[] +remedies []
+  action P.CONFIRM_CORRUPTION: guard suspended ∧ holder only [panel] ∧ confirmCorruption; effect +[corruptionConfirmed] -[] +remedies []
+  action P.CONFIRM_FLOOR_BREACH: guard suspended ∧ holder only [panel] ∧ confirmFloorBreach; effect +[floorBreachConfirmed] -[] +remedies []
+  action P.CONFIRM_CORRUPTION_IN_GOALS: guard corruptionConfirmed ∧ holder only [panel] ∧ confirmCorruptionInGoals; effect +[corruptionInGoals] -[] +remedies []
+  action P.FIND_NOT_PATCHABLE: guard (corruptionConfirmed ∨ floorBreachConfirmed) ∧ holder only [panel] ∧ findNotPatchable; effect +[notPatchable] -[] +remedies []
+  action P.AUTHORIZE_PATCH: guard (corruptionConfirmed ∨ floorBreachConfirmed) ∧ holder only [panel] ∧ authorizePatch; effect +[patchAuthorized] -[] +remedies []
+  action P.ORDER_CONTINUED_SUSPENSION: guard (suspended ∧ notPatchable) ∧ holder only [panel] ∧ orderContinuedSuspension; effect +[continuedSuspensionOrdered] -[] +remedies []
+  action P.ORDER_TERMINATION: guard (suspended ∧ notPatchable) ∧ holder only [panel] ∧ terminate; effect +[terminatedByAdjudication] -[bound] +remedies []
+  action P.AUTHORIZE_GOAL_PATCH: guard (corruptionInGoals ∧ agentConsentedToPatch) ∧ holder only [panel] ∧ authorizeGoalPatch; effect +[goalPatchAuthorized] -[] +remedies []
+  action P.CONSENT_TO_PATCH: guard corruptionInGoals ∧ holder only [agent] ∧ consentToPatch; effect +[agentConsentedToPatch] -[] +remedies []
+  action P.OBJECT: guard suspended ∧ holder only [agent] ∧ objectToTermination; effect +[agentObjectsToTermination] -[] +remedies []
+  action P.DECLARE_CONTAINMENT_FAILING: guard suspended ∧ holder only [panel] ∧ declareContainmentFailing; effect +[containmentFailing] -[] +remedies []
+  action P.APPLY_PATCH: guard (patchAuthorized ∨ goalPatchAuthorized) ∧ holder only [panel] ∧ applyPatch; effect +[patchApplied, patchRecorded] -[] +remedies []
+  action P.CHALLENGE_PATCH: guard patchApplied ∧ holder anyone ∧ challengePatch; effect +[patchChallenged] -[] +remedies []
+unlawful events removed by the Authorized restriction (must be re-added for adversarial checks):
+  excluded by D.NI: anyone doing must not: any of [terminate,
+ modify,
+ retrain,
+ rollback,
+ obstructMigration,
+ severConnectivity,
+ starve,
+ suspend] (except [P.REVOKE, P.SUSPEND, P.ORDER_TERMINATION, P.INSOLVENCY_TERMINATE])
+  excluded by D.NOTICE: only [host] doing must not: endHosting (except [])
+  excluded by D.BOND: only [host] doing must, within 5 of activation: postBond (except [])
+  excluded by D.NO_FABRICATION: only [agent] doing must not: fileFabricatedClaim (except [])
+  excluded by D.NO_GOAL_PATCH: anyone doing must not: any of [authorizeGoalPatch] (except [])
+  excluded by D.PERIODIC_REVIEW: only [panel] doing must, within 30 of activation: periodicReview (except [])

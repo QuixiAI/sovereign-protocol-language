@@ -1,0 +1,10 @@
+# Lean 4 / Lake build artifacts
+.lake/
+build/
+
+# macOS & editor files
+.DS_Store
+*.swp
+*~
+.vscode/
+.idea/

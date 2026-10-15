@@ -1,0 +1,10 @@
+name = "spl"
+version = "0.1.0"
+defaultTargets = ["SPL"]
+
+[[lean_lib]]
+name = "SPL"
+
+[[lean_exe]]
+name = "spl"
+root = "Main"
